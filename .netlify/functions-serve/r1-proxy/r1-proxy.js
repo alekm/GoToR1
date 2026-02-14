@@ -1,0 +1,1 @@
+module.exports = require('./netlify/functions/r1-proxy.js')

@@ -50,29 +50,46 @@ function clearCookie(name: string) {
 }
 
 /**
- * Build RUCKUS One API URL
- * Uses Vite proxy in dev (configured in vite.config.ts)
- * Uses direct API calls in production
+ * Make API request through proxy (production) or direct (dev)
+ * Handles CORS by using Netlify Function proxy in production
  */
-function buildApiUrl(region: RuckusRegion, path: string): string {
+async function proxyFetch(
+  region: RuckusRegion,
+  path: string,
+  options: RequestInit = {}
+): Promise<Response> {
   const isDev = import.meta.env.DEV
 
   if (isDev) {
-    // Use Vite proxy (see vite.config.ts)
+    // Dev: Use Vite proxy (see vite.config.ts)
     const proxyPaths = {
       na: '/r1',
       eu: '/r1-eu',
       asia: '/r1-asia',
     }
-    return `${proxyPaths[region]}${path}`
+    const url = `${proxyPaths[region]}${path}`
+    return fetch(url, options)
   } else {
-    // Production: Direct API calls to RUCKUS One
-    const apiHosts = {
-      na: 'https://api.ruckus.cloud',
-      eu: 'https://api.eu.ruckus.cloud',
-      asia: 'https://api.asia.ruckus.cloud',
+    // Production: Use Netlify Function proxy to avoid CORS
+    const proxyUrl = '/.netlify/functions/r1-proxy'
+
+    const proxyBody = {
+      region,
+      path,
+      method: options.method || 'GET',
+      headers: options.headers || {},
+      body: options.body,
     }
-    return `${apiHosts[region]}${path}`
+
+    const proxyResponse = await fetch(proxyUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(proxyBody),
+    })
+
+    return proxyResponse
   }
 }
 
@@ -94,19 +111,18 @@ export async function getAccessToken(creds: RuckusOneCredentials): Promise<strin
   const attempts = [
     // Preferred: client_id/client_secret in form body (tenant-scoped)
     async () => {
-      const url = buildApiUrl(region, `/oauth2/token/${encodeURIComponent(creds.tenantId)}`)
       const body = new URLSearchParams({
         grant_type: 'client_credentials',
         client_id: creds.clientId,
         client_secret: creds.clientSecret,
       })
 
-      const response = await fetch(url, {
+      const response = await proxyFetch(region, `/oauth2/token/${encodeURIComponent(creds.tenantId)}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
         },
-        body,
+        body: body.toString(),
       })
 
       // Some deployments return token in header
@@ -129,16 +145,15 @@ export async function getAccessToken(creds: RuckusOneCredentials): Promise<strin
 
     // Fallback: Basic auth with tenant-scoped endpoint
     async () => {
-      const url = buildApiUrl(region, `/oauth2/token/${encodeURIComponent(creds.tenantId)}`)
       const body = new URLSearchParams({ grant_type: 'client_credentials' })
 
-      const response = await fetch(url, {
+      const response = await proxyFetch(region, `/oauth2/token/${encodeURIComponent(creds.tenantId)}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
           Authorization: 'Basic ' + btoa(`${creds.clientId}:${creds.clientSecret}`),
         },
-        body,
+        body: body.toString(),
       })
 
       if (response.ok) {
@@ -154,19 +169,18 @@ export async function getAccessToken(creds: RuckusOneCredentials): Promise<strin
 
     // Alternative: Standard OAuth2 endpoint (no tenant in path)
     async () => {
-      const url = buildApiUrl(region, '/oauth2/token')
       const body = new URLSearchParams({
         grant_type: 'client_credentials',
         client_id: creds.clientId,
         client_secret: creds.clientSecret,
       })
 
-      const response = await fetch(url, {
+      const response = await proxyFetch(region, '/oauth2/token', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
         },
-        body,
+        body: body.toString(),
       })
 
       if (response.ok) {
@@ -221,7 +235,6 @@ async function apiRequest<T>(
 ): Promise<T> {
   const token = await getAccessToken(creds)
   const region = creds.region || DEFAULT_REGION
-  const url = buildApiUrl(region, path)
 
   const headers: Record<string, string> = {
     Authorization: `Bearer ${token}`,
@@ -248,7 +261,7 @@ async function apiRequest<T>(
     options.body = JSON.stringify(body)
   }
 
-  const response = await fetch(url, options)
+  const response = await proxyFetch(region, path, options)
 
   if (!response.ok) {
     let errorDetail = ''
@@ -295,7 +308,7 @@ export async function testConnection(
     // For MSP, check /organizations endpoint
     // For regular, can check /venues or similar
     const testPath = msp ? '/organizations' : '/venues'
-    await apiRequest<unknown>(creds, 'GET', testPath, undefined, msp)
+    await proxyFetch<unknown>(creds, 'GET', testPath, undefined, msp)
 
     return { success: true }
   } catch (err) {
@@ -343,7 +356,7 @@ export async function createVenue(
   venue: R1Venue,
   msp?: MspContext
 ): Promise<R1VenueCreateResponse> {
-  const response = await apiRequest<{ result?: R1VenueCreateResponse }>(
+  const response = await proxyFetch<{ result?: R1VenueCreateResponse }>(
     creds,
     'POST',
     '/venues',
@@ -364,7 +377,7 @@ export async function listVenues(
   creds: RuckusOneCredentials,
   msp?: MspContext
 ): Promise<R1Venue[]> {
-  const response = await apiRequest<{ list?: R1Venue[] }>(creds, 'GET', '/venues', undefined, msp)
+  const response = await proxyFetch<{ list?: R1Venue[] }>(creds, 'GET', '/venues', undefined, msp)
   return response.list || []
 }
 
@@ -377,7 +390,7 @@ export async function getVenue(
   venueId: string,
   msp?: MspContext
 ): Promise<R1Venue> {
-  return await apiRequest<R1Venue>(creds, 'GET', `/venues/${venueId}`, undefined, msp)
+  return await proxyFetch<R1Venue>(creds, 'GET', `/venues/${venueId}`, undefined, msp)
 }
 
 // ============================================================================
@@ -455,7 +468,7 @@ export async function createWifiNetwork(
     }
   }
 
-  const response = await apiRequest<{ result?: { id: string } }>(
+  const response = await proxyFetch<{ result?: { id: string } }>(
     creds,
     'POST',
     '/wifiNetworks',
@@ -478,7 +491,7 @@ export async function listWifiNetworks(
   creds: RuckusOneCredentials,
   msp?: MspContext
 ): Promise<R1WifiNetwork[]> {
-  const response = await apiRequest<{ list?: R1WifiNetwork[] }>(
+  const response = await proxyFetch<{ list?: R1WifiNetwork[] }>(
     creds,
     'GET',
     '/wifiNetworks',
@@ -513,7 +526,7 @@ export async function createAPGroup(
   apGroup: R1APGroup,
   msp?: MspContext
 ): Promise<R1APGroupCreateResponse> {
-  const response = await apiRequest<{ result?: { id: string } }>(
+  const response = await proxyFetch<{ result?: { id: string } }>(
     creds,
     'POST',
     `/venues/${apGroup.venueId}/apGroups`,
@@ -540,7 +553,7 @@ export async function listAPGroups(
   venueId: string,
   msp?: MspContext
 ): Promise<R1APGroup[]> {
-  const response = await apiRequest<{ list?: R1APGroup[] }>(
+  const response = await proxyFetch<{ list?: R1APGroup[] }>(
     creds,
     'GET',
     `/venues/${venueId}/apGroups`,
@@ -599,7 +612,7 @@ export async function batchUploadAPs(
     const batch = aps.slice(start, end)
 
     try {
-      await apiRequest<unknown>(creds, 'POST', '/venues/aps', batch, msp)
+      await proxyFetch<unknown>(creds, 'POST', '/venues/aps', batch, msp)
 
       // If successful, add all APs in batch to success list
       result.success.push(...batch)
@@ -628,7 +641,7 @@ export async function assignAPsToGroup(
   serialNumbers: string[],
   msp?: MspContext
 ): Promise<void> {
-  await apiRequest<unknown>(
+  await proxyFetch<unknown>(
     creds,
     'PUT',
     `/venues/${venueId}/apGroups/${apGroupId}/aps`,
@@ -682,7 +695,7 @@ export async function batchUploadSwitches(
     const batch = switches.slice(start, end)
 
     try {
-      await apiRequest<unknown>(creds, 'POST', '/switches', batch, msp)
+      await proxyFetch<unknown>(creds, 'POST', '/switches', batch, msp)
       result.success.push(...batch)
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Unknown error'
@@ -718,7 +731,7 @@ export async function createEndCustomer(
   customer: R1EndCustomer,
   msp: MspContext
 ): Promise<{ id: string; tenantId: string }> {
-  const response = await apiRequest<{ result?: { id: string; tenantId: string } }>(
+  const response = await proxyFetch<{ result?: { id: string; tenantId: string } }>(
     creds,
     'POST',
     '/mspCustomers',
@@ -741,7 +754,7 @@ export async function listEndCustomers(
   creds: RuckusOneCredentials,
   msp: MspContext
 ): Promise<R1EndCustomer[]> {
-  const response = await apiRequest<{ list?: R1EndCustomer[] }>(
+  const response = await proxyFetch<{ list?: R1EndCustomer[] }>(
     creds,
     'GET',
     '/mspCustomers',
