@@ -53,7 +53,7 @@ exports.handler = async (event, context) => {
 
   try {
     // Parse the path to determine region and target endpoint
-    let path = event.path.replace('/.netlify/functions/api-proxy', '');
+    let path = event.path.replace('/.netlify/functions/api', '');
     
     // Remove /api prefix if present (for production routing)
     if (path.startsWith('/api')) {
