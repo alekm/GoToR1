@@ -66,11 +66,11 @@ export default function Step7_GenerateConfigs({
       return {
         szWlanId: net.sourceWlanId,
         name: net.name,
-        ssid: net.wlan.ssid,
+        ssid: net.ssid,
         securityType,
-        encryption: net.wlan.encryption as 'aes' | 'tkip' | undefined,
-        vlanId: net.wlan.vlanId,
-        enabled: true,
+        encryption: net.encryption?.algorithm?.toLowerCase() as 'aes' | 'tkip' | undefined,
+        vlanId: net.vlan?.accessVlan,
+        enabled: net.enabled ?? true,
         _zoneName: zone?.name,
       }
     })
