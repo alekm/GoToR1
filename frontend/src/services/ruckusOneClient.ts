@@ -308,7 +308,7 @@ export async function testConnection(
     // For MSP, check /organizations endpoint
     // For regular, can check /venues or similar
     const testPath = msp ? '/organizations' : '/venues'
-    await proxyFetch<unknown>(creds, 'GET', testPath, undefined, msp)
+    await apiRequest<unknown>(creds, 'GET', testPath, undefined, msp)
 
     return { success: true }
   } catch (err) {
@@ -356,7 +356,7 @@ export async function createVenue(
   venue: R1Venue,
   msp?: MspContext
 ): Promise<R1VenueCreateResponse> {
-  const response = await proxyFetch<{ result?: R1VenueCreateResponse }>(
+  const response = await apiRequest<{ result?: R1VenueCreateResponse }>(
     creds,
     'POST',
     '/venues',
@@ -377,7 +377,7 @@ export async function listVenues(
   creds: RuckusOneCredentials,
   msp?: MspContext
 ): Promise<R1Venue[]> {
-  const response = await proxyFetch<{ list?: R1Venue[] }>(creds, 'GET', '/venues', undefined, msp)
+  const response = await apiRequest<{ list?: R1Venue[] }>(creds, 'GET', '/venues', undefined, msp)
   return response.list || []
 }
 
@@ -390,7 +390,7 @@ export async function getVenue(
   venueId: string,
   msp?: MspContext
 ): Promise<R1Venue> {
-  return await proxyFetch<R1Venue>(creds, 'GET', `/venues/${venueId}`, undefined, msp)
+  return await apiRequest<R1Venue>(creds, 'GET', `/venues/${venueId}`, undefined, msp)
 }
 
 // ============================================================================
@@ -468,7 +468,7 @@ export async function createWifiNetwork(
     }
   }
 
-  const response = await proxyFetch<{ result?: { id: string } }>(
+  const response = await apiRequest<{ result?: { id: string } }>(
     creds,
     'POST',
     '/wifiNetworks',
@@ -491,7 +491,7 @@ export async function listWifiNetworks(
   creds: RuckusOneCredentials,
   msp?: MspContext
 ): Promise<R1WifiNetwork[]> {
-  const response = await proxyFetch<{ list?: R1WifiNetwork[] }>(
+  const response = await apiRequest<{ list?: R1WifiNetwork[] }>(
     creds,
     'GET',
     '/wifiNetworks',
@@ -526,7 +526,7 @@ export async function createAPGroup(
   apGroup: R1APGroup,
   msp?: MspContext
 ): Promise<R1APGroupCreateResponse> {
-  const response = await proxyFetch<{ result?: { id: string } }>(
+  const response = await apiRequest<{ result?: { id: string } }>(
     creds,
     'POST',
     `/venues/${apGroup.venueId}/apGroups`,
@@ -553,7 +553,7 @@ export async function listAPGroups(
   venueId: string,
   msp?: MspContext
 ): Promise<R1APGroup[]> {
-  const response = await proxyFetch<{ list?: R1APGroup[] }>(
+  const response = await apiRequest<{ list?: R1APGroup[] }>(
     creds,
     'GET',
     `/venues/${venueId}/apGroups`,
@@ -612,7 +612,7 @@ export async function batchUploadAPs(
     const batch = aps.slice(start, end)
 
     try {
-      await proxyFetch<unknown>(creds, 'POST', '/venues/aps', batch, msp)
+      await apiRequest<unknown>(creds, 'POST', '/venues/aps', batch, msp)
 
       // If successful, add all APs in batch to success list
       result.success.push(...batch)
@@ -641,7 +641,7 @@ export async function assignAPsToGroup(
   serialNumbers: string[],
   msp?: MspContext
 ): Promise<void> {
-  await proxyFetch<unknown>(
+  await apiRequest<unknown>(
     creds,
     'PUT',
     `/venues/${venueId}/apGroups/${apGroupId}/aps`,
@@ -695,7 +695,7 @@ export async function batchUploadSwitches(
     const batch = switches.slice(start, end)
 
     try {
-      await proxyFetch<unknown>(creds, 'POST', '/switches', batch, msp)
+      await apiRequest<unknown>(creds, 'POST', '/switches', batch, msp)
       result.success.push(...batch)
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Unknown error'
@@ -731,7 +731,7 @@ export async function createEndCustomer(
   customer: R1EndCustomer,
   msp: MspContext
 ): Promise<{ id: string; tenantId: string }> {
-  const response = await proxyFetch<{ result?: { id: string; tenantId: string } }>(
+  const response = await apiRequest<{ result?: { id: string; tenantId: string } }>(
     creds,
     'POST',
     '/mspCustomers',
@@ -754,7 +754,7 @@ export async function listEndCustomers(
   creds: RuckusOneCredentials,
   msp: MspContext
 ): Promise<R1EndCustomer[]> {
-  const response = await proxyFetch<{ list?: R1EndCustomer[] }>(
+  const response = await apiRequest<{ list?: R1EndCustomer[] }>(
     creds,
     'GET',
     '/mspCustomers',

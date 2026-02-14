@@ -98,8 +98,7 @@ export default function Step4_ReviewExtractedData({
       const header = parseCSVLine(lines[0]).map(h => h.toLowerCase())
       const newSwitches: SZSwitch[] = []
 
-      // Detect format
-      const isR1Format = header.includes('switch name') || header.includes('serial number')
+      // Detect format from header
       const serialIdx = header.findIndex(h => h.includes('serial'))
       const nameIdx = header.findIndex(h => h.includes('name'))
       const modelIdx = header.findIndex(h => h.includes('model'))
