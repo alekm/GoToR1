@@ -12,6 +12,7 @@ import Step2_ConnectSZ from './wizard/Step2_ConnectSZ'
 import Step3_ExtractData from './wizard/Step3_ExtractData'
 import Step4_ReviewExtractedData from './wizard/Step4_ReviewExtractedData'
 import Step5_DataValidation from './wizard/Step5_DataValidation'
+import Step6_CreateVenues from './wizard/Step6_CreateVenues'
 import type { SmartZoneConfig, SmartZoneData, MigrationStep } from '../types/migration'
 
 export default function MigrationWizard() {
@@ -109,16 +110,34 @@ export default function MigrationWizard() {
       })
       await refresh()
       setCurrentStep('venues')
-      // TODO: Navigate to Step 6 when implemented
-      alert('Steps 6-10 coming soon...')
     } catch (err) {
       console.error('Failed to proceed to venue creation:', err)
       alert('Failed to proceed. Please try again.')
     }
   }
 
+  const handleVenueCreationComplete = async (venueMapping: Record<string, string>) => {
+    try {
+      // Save venue mapping and proceed to next step
+      await migrationStateManager.updateProject(projectId, {
+        venueMapping,
+        currentStep: 'networks',
+        status: 'configuring',
+      })
+      await refresh()
+      setCurrentStep('networks')
+      // TODO: Navigate to Step 7 when implemented
+      alert('Steps 7-10 coming soon...')
+    } catch (err) {
+      console.error('Failed to save venue mapping:', err)
+      alert('Failed to proceed. Please try again.')
+    }
+  }
+
   const handleBack = () => {
-    if (currentStep === 'validate') {
+    if (currentStep === 'venues') {
+      setCurrentStep('validate')
+    } else if (currentStep === 'validate') {
       setCurrentStep('review')
     } else if (currentStep === 'review') {
       setCurrentStep('extract')
@@ -193,6 +212,16 @@ export default function MigrationWizard() {
           projectId={projectId}
           extractedData={project.extractedData}
           onComplete={handleValidationComplete}
+          onBack={handleBack}
+        />
+      )}
+
+      {currentStep === 'venues' && project.extractedData && project.ruckusOneConfig && (
+        <Step6_CreateVenues
+          projectId={projectId}
+          extractedData={project.extractedData}
+          ruckusOneConfig={project.ruckusOneConfig}
+          onComplete={handleVenueCreationComplete}
           onBack={handleBack}
         />
       )}
