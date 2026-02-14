@@ -138,6 +138,26 @@ export default function Step5_DataValidation({
             </div>
           </div>
 
+          {/* Zones/Venues Details */}
+          {extractedData.zones.length > 0 && (
+            <div className="card border-gray-300 bg-white">
+              <h3 className="text-lg font-semibold text-gray-900 mb-3">
+                Zones / Venues ({extractedData.zones.length})
+              </h3>
+              <div className="space-y-2">
+                {extractedData.zones.map((zone, idx) => (
+                  <div key={idx} className="py-2 px-3 bg-gray-50 rounded border border-gray-200">
+                    <div className="font-medium text-gray-900">{zone.name}</div>
+                    {zone.description && (
+                      <div className="text-sm text-gray-600 mt-1">{zone.description}</div>
+                    )}
+                    <div className="text-xs text-gray-500 mt-1">Zone ID: {zone.id}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* WLAN Details */}
           {extractedData.wlans.length > 0 && (
             <div className="card border-gray-300 bg-white">
@@ -146,16 +166,111 @@ export default function Step5_DataValidation({
               </h3>
               <div className="space-y-2">
                 {extractedData.wlans.map((wlan, idx) => (
-                  <div key={idx} className="flex items-center justify-between py-2 px-3 bg-gray-50 rounded border border-gray-200">
-                    <div className="flex-1">
-                      <span className="font-medium text-gray-900">{wlan.name}</span>
-                      <span className="text-gray-500 ml-2">
-                        ({wlan.type || 'no type specified'})
-                      </span>
+                  <div key={idx} className="py-2 px-3 bg-gray-50 rounded border border-gray-200">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <span className="font-medium text-gray-900">{wlan.name}</span>
+                        <span className="text-gray-500 ml-2">
+                          ({wlan.type || 'no type specified'})
+                        </span>
+                      </div>
+                      <div className="text-sm text-gray-600">
+                        SSID: {wlan.ssid}
+                      </div>
                     </div>
-                    <div className="text-sm text-gray-600">
-                      SSID: {wlan.ssid}
+                    {wlan.vlan?.accessVlan && (
+                      <div className="text-sm text-gray-600 mt-1">VLAN: {wlan.vlan.accessVlan}</div>
+                    )}
+                    {wlan.encryption && (
+                      <div className="text-sm text-gray-600">
+                        Encryption: {wlan.encryption.method} / {wlan.encryption.algorithm}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* AP Groups Details */}
+          {extractedData.apGroups.length > 0 && (
+            <div className="card border-gray-300 bg-white">
+              <h3 className="text-lg font-semibold text-gray-900 mb-3">
+                AP Groups ({extractedData.apGroups.length})
+              </h3>
+              <div className="space-y-2">
+                {extractedData.apGroups.map((group, idx) => {
+                  const zone = extractedData.zones.find((z) => z.id === group.zoneId)
+                  return (
+                    <div key={idx} className="py-2 px-3 bg-gray-50 rounded border border-gray-200">
+                      <div className="font-medium text-gray-900">{group.name}</div>
+                      {group.description && (
+                        <div className="text-sm text-gray-600 mt-1">{group.description}</div>
+                      )}
+                      <div className="text-sm text-gray-600 mt-1">
+                        Zone: {zone?.name || group.zoneId}
+                      </div>
+                      {group.wlans && group.wlans.length > 0 && (
+                        <div className="text-xs text-gray-500 mt-1">
+                          WLANs: {group.wlans.map((w) => w.name).join(', ')}
+                        </div>
+                      )}
                     </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Access Points Details */}
+          {extractedData.accessPoints.length > 0 && (
+            <div className="card border-gray-300 bg-white">
+              <h3 className="text-lg font-semibold text-gray-900 mb-3">
+                Access Points ({extractedData.accessPoints.length})
+              </h3>
+              <div className="space-y-2">
+                {extractedData.accessPoints.map((ap, idx) => {
+                  const zone = extractedData.zones.find((z) => z.id === ap.zoneId)
+                  const apGroup = extractedData.apGroups.find((g) => g.id === ap.apGroupId)
+                  return (
+                    <div key={idx} className="py-2 px-3 bg-gray-50 rounded border border-gray-200">
+                      <div className="flex items-center justify-between">
+                        <div className="font-medium text-gray-900">{ap.name}</div>
+                        <div className="text-sm text-gray-600">{ap.model}</div>
+                      </div>
+                      <div className="text-sm text-gray-600 mt-1">Serial: {ap.serial}</div>
+                      <div className="text-sm text-gray-600">
+                        Zone: {zone?.name || 'Unknown'} | AP Group: {apGroup?.name || 'Unknown'}
+                      </div>
+                      {ap.gps && (
+                        <div className="text-xs text-gray-500 mt-1">
+                          GPS: {ap.gps.latitude}, {ap.gps.longitude}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Switches Details */}
+          {extractedData.switches.length > 0 && (
+            <div className="card border-gray-300 bg-white">
+              <h3 className="text-lg font-semibold text-gray-900 mb-3">
+                Switches ({extractedData.switches.length})
+              </h3>
+              <div className="space-y-2">
+                {extractedData.switches.map((sw, idx) => (
+                  <div key={idx} className="py-2 px-3 bg-gray-50 rounded border border-gray-200">
+                    <div className="flex items-center justify-between">
+                      <div className="font-medium text-gray-900">{sw.name}</div>
+                      <div className="text-sm text-gray-600">{sw.model}</div>
+                    </div>
+                    <div className="text-sm text-gray-600 mt-1">Serial: {sw.serial}</div>
+                    {sw.location && (
+                      <div className="text-sm text-gray-600">Location: {sw.location}</div>
+                    )}
                   </div>
                 ))}
               </div>
