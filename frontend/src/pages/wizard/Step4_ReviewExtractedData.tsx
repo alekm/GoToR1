@@ -57,23 +57,73 @@ export default function Step4_ReviewExtractedData({
     const reader = new FileReader()
     reader.onload = (e) => {
       const text = e.target?.result as string
-      const lines = text.split('\n').filter((line) => line.trim())
 
-      // Parse CSV (assuming: Serial,Name,Model,Location)
-      const newSwitches: SZSwitch[] = []
-      for (let i = 1; i < lines.length; i++) {
-        // Skip header
-        const parts = lines[i].split(',').map((p) => p.trim())
-        if (parts.length >= 2) {
-          newSwitches.push({
-            serial: parts[0],
-            mac: parts[3] || `00:00:00:00:00:${i.toString().padStart(2, '0')}`, // Placeholder MAC
-            name: parts[1],
-            model: parts[2] || 'Unknown',
-            location: parts[3] || '',
-            managedBy: 'csv',
-          })
+      // Split lines and filter out comments and empty lines
+      const lines = text.split('\n')
+        .filter((line) => line.trim() && !line.trim().startsWith('#'))
+
+      if (lines.length < 2) {
+        alert('CSV file must have a header and at least one data row')
+        return
+      }
+
+      // Parse CSV with RFC 4180 support (simple implementation)
+      const parseCSVLine = (line: string): string[] => {
+        const result: string[] = []
+        let current = ''
+        let inQuotes = false
+
+        for (let i = 0; i < line.length; i++) {
+          const char = line[i]
+          const nextChar = line[i + 1]
+
+          if (char === '"') {
+            if (inQuotes && nextChar === '"') {
+              current += '"'
+              i++ // Skip next quote
+            } else {
+              inQuotes = !inQuotes
+            }
+          } else if (char === ',' && !inQuotes) {
+            result.push(current.trim())
+            current = ''
+          } else {
+            current += char
+          }
         }
+        result.push(current.trim())
+        return result
+      }
+
+      const header = parseCSVLine(lines[0]).map(h => h.toLowerCase())
+      const newSwitches: SZSwitch[] = []
+
+      // Detect format
+      const isR1Format = header.includes('switch name') || header.includes('serial number')
+      const serialIdx = header.findIndex(h => h.includes('serial'))
+      const nameIdx = header.findIndex(h => h.includes('name'))
+      const modelIdx = header.findIndex(h => h.includes('model'))
+      const locationIdx = header.findIndex(h => h.includes('location'))
+
+      for (let i = 1; i < lines.length; i++) {
+        const parts = parseCSVLine(lines[i])
+
+        // Skip empty rows
+        if (parts.every(p => !p)) continue
+
+        const serial = parts[serialIdx] || parts[0]
+        const name = parts[nameIdx] || parts[1] || `Switch-${i}`
+
+        if (!serial) continue
+
+        newSwitches.push({
+          serial,
+          mac: `00:00:00:00:00:${i.toString().padStart(2, '0')}`, // Placeholder MAC
+          name,
+          model: (modelIdx >= 0 ? parts[modelIdx] : '') || 'Unknown',
+          location: (locationIdx >= 0 ? parts[locationIdx] : '') || '',
+          managedBy: 'csv',
+        })
       }
 
       if (newSwitches.length > 0) {
@@ -87,6 +137,8 @@ export default function Step4_ReviewExtractedData({
         }))
         setShowSwitchImport(false)
         alert(`Imported ${newSwitches.length} switches from CSV`)
+      } else {
+        alert('No valid switch data found in CSV')
       }
     }
     reader.readAsText(file)
@@ -132,6 +184,34 @@ export default function Step4_ReviewExtractedData({
         },
       }))
     }
+  }
+
+  const handleDownloadTemplate = () => {
+    const template = `# RUCKUS One Switch Import Template
+# Supports two formats:
+#
+# Format 1 - R1 Standard (for direct import to RUCKUS One):
+# Switch Name,Serial Number,Reason
+# My Switch,FEK3204N001,
+#
+# Format 2 - Extended (includes model and location):
+# Serial,Name,Model,Location
+# FEK3204N001,My Switch,ICX7150,Building A
+#
+# Notes:
+# - Lines starting with # are ignored
+# - Header row is required
+# - Serial number format: PPPnnWWYsss (e.g., FEK3204N001)
+#
+Switch Name,Serial Number,Reason
+`
+    const blob = new Blob([template], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'switch-import-template.csv'
+    a.click()
+    URL.revokeObjectURL(url)
   }
 
   const handleContinue = () => {
@@ -507,24 +587,32 @@ export default function Step4_ReviewExtractedData({
                     <div>
                       <h4 className="font-medium text-blue-900">Import Switches from CSV</h4>
                       <p className="text-sm text-blue-700 mt-1">
-                        CSV format: Serial,Name,Model,Location (header required)
+                        Supports R1 format (Switch Name,Serial Number,Reason) or extended format (Serial,Name,Model,Location)
                       </p>
                     </div>
                     <button onClick={() => setShowSwitchImport(false)} className="text-blue-600 hover:text-blue-800">
                       <X size={20} />
                     </button>
                   </div>
-                  <input
-                    type="file"
-                    accept=".csv"
-                    onChange={handleCsvImport}
-                    className="block w-full text-sm text-gray-500
-                      file:mr-4 file:py-2 file:px-4
-                      file:rounded-md file:border-0
-                      file:text-sm file:font-semibold
-                      file:bg-blue-600 file:text-white
-                      hover:file:bg-blue-700"
-                  />
+                  <div className="space-y-3">
+                    <button
+                      onClick={handleDownloadTemplate}
+                      className="text-sm text-blue-600 hover:text-blue-800 underline"
+                    >
+                      📥 Download CSV Template
+                    </button>
+                    <input
+                      type="file"
+                      accept=".csv"
+                      onChange={handleCsvImport}
+                      className="block w-full text-sm text-gray-500
+                        file:mr-4 file:py-2 file:px-4
+                        file:rounded-md file:border-0
+                        file:text-sm file:font-semibold
+                        file:bg-blue-600 file:text-white
+                        hover:file:bg-blue-700"
+                    />
+                  </div>
                 </div>
               )}
 
