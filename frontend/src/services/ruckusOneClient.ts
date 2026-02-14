@@ -131,7 +131,9 @@ export async function getAccessToken(creds: RuckusOneCredentials): Promise<strin
         if (headerToken) {
           return { access_token: headerToken }
         }
-        return await response.json()
+        const jsonData = await response.json()
+        console.log('OAuth2 response:', jsonData) // Debug logging
+        return jsonData
       }
 
       let errorDetail = ''
@@ -196,8 +198,13 @@ export async function getAccessToken(creds: RuckusOneCredentials): Promise<strin
     try {
       const data = await attempt()
       const token = data.access_token
-      const expiresIn = Math.max(60, Number(data.expires_in) || 3600)
 
+      // Validate token before caching
+      if (!token || token === 'undefined' || typeof token !== 'string' || token.trim() === '') {
+        throw new Error('Invalid token received from authentication response')
+      }
+
+      const expiresIn = Math.max(60, Number(data.expires_in) || 3600)
       setCookie(key, token, expiresIn - 30) // Expire cookie 30s early for safety
       return token
     } catch (e) {
