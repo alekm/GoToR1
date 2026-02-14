@@ -200,7 +200,7 @@ export default function Step5_DataValidation({
                       <div className="flex items-start space-x-3">
                         <X size={20} className="text-red-600 flex-shrink-0 mt-0.5" />
                         <div className="flex-1">
-                          <p className="font-medium text-red-900">{conflict.type.replace(/_/g, ' ').toUpperCase()}</p>
+                          <p className="font-medium text-red-900">{conflict.type?.replace(/_/g, ' ').toUpperCase() || 'CONFLICT'}</p>
                           <p className="text-sm text-red-700 mt-1">
                             {conflict.items.length} conflicting items
                           </p>
@@ -252,7 +252,7 @@ export default function Step5_DataValidation({
                       <div className="flex items-start space-x-3">
                         <AlertTriangle size={20} className="text-yellow-600 flex-shrink-0 mt-0.5" />
                         <div className="flex-1">
-                          <p className="font-medium text-yellow-900">{conflict.type.replace(/_/g, ' ').toUpperCase()}</p>
+                          <p className="font-medium text-yellow-900">{conflict.type?.replace(/_/g, ' ').toUpperCase() || 'WARNING'}</p>
                           {conflict.resolution && (
                             <p className="text-sm text-yellow-700 mt-1">{conflict.resolution}</p>
                           )}
