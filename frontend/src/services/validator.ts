@@ -328,7 +328,7 @@ function checkSSIDNames(data: SmartZoneData, issues: ValidationIssue[]) {
 
 function checkUnsupportedWLANFeatures(data: SmartZoneData, unsupportedFeatures: UnsupportedFeature[]) {
   // Check for Hotspot 2.0
-  const hotspot20WLANs = data.wlans.filter((w) => w.type.toLowerCase().includes('hotspot'))
+  const hotspot20WLANs = data.wlans.filter((w) => w.type?.toLowerCase().includes('hotspot'))
   if (hotspot20WLANs.length > 0) {
     unsupportedFeatures.push({
       feature: 'Hotspot 2.0',
@@ -339,7 +339,7 @@ function checkUnsupportedWLANFeatures(data: SmartZoneData, unsupportedFeatures: 
   }
 
   // Check for WeChat
-  const wechatWLANs = data.wlans.filter((w) => w.type.toLowerCase().includes('wechat'))
+  const wechatWLANs = data.wlans.filter((w) => w.type?.toLowerCase().includes('wechat'))
   if (wechatWLANs.length > 0) {
     unsupportedFeatures.push({
       feature: 'WeChat Authentication',
