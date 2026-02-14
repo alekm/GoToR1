@@ -1,5 +1,8 @@
 import type { RuckusRegion } from './ruckusOneClient'
 
+// Re-export for consumers of this module
+export type { RuckusRegion } from './ruckusOneClient'
+
 // Determine if we're in development or production
 const isDevelopment = import.meta.env.DEV
 
