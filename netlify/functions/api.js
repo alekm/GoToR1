@@ -1,5 +1,3 @@
-const fetch = require('node-fetch');
-
 // Regional API endpoints mapping
 const REGIONAL_ENDPOINTS = {
   na: 'https://api.ruckus.cloud',
