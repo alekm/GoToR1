@@ -240,6 +240,11 @@ export default function Step5_DataValidation({
                         {getSeverityIcon(issue.severity)}
                         <div className="flex-1">
                           <p className="font-medium text-yellow-900">{issue.message}</p>
+                          {issue.affectedItems && issue.affectedItems.length > 0 && (
+                            <p className="text-sm text-yellow-700 mt-1">
+                              Affected: {issue.affectedItems.join(', ')}
+                            </p>
+                          )}
                           {issue.suggestion && (
                             <p className="text-sm text-yellow-700 mt-1">💡 {issue.suggestion}</p>
                           )}
