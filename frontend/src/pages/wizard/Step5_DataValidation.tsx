@@ -138,6 +138,30 @@ export default function Step5_DataValidation({
             </div>
           </div>
 
+          {/* WLAN Details */}
+          {extractedData.wlans.length > 0 && (
+            <div className="card border-gray-300 bg-white">
+              <h3 className="text-lg font-semibold text-gray-900 mb-3">
+                WLANs ({extractedData.wlans.length})
+              </h3>
+              <div className="space-y-2">
+                {extractedData.wlans.map((wlan, idx) => (
+                  <div key={idx} className="flex items-center justify-between py-2 px-3 bg-gray-50 rounded border border-gray-200">
+                    <div className="flex-1">
+                      <span className="font-medium text-gray-900">{wlan.name}</span>
+                      <span className="text-gray-500 ml-2">
+                        ({wlan.type || 'no type specified'})
+                      </span>
+                    </div>
+                    <div className="text-sm text-gray-600">
+                      SSID: {wlan.ssid}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Errors */}
           {errorIssues.length > 0 && (
             <div className="card border-red-300 bg-red-50">

@@ -361,34 +361,76 @@ function checkSecurityTypes(
     Standard: 'psk',
     Standard_8021X: 'aaa',
     'Standard_MAC': 'aaa', // MAC auth requires AAA in R1
+    Hotspot: 'open',
+    'Hotspot_MAC': 'aaa',
+    'Hotspot_8021X': 'aaa',
+    Guest: 'open',
+    Web_Auth: 'open',
   }
 
-  const unmappedTypes = new Set<string>()
+  const unmappedWLANs: Array<{ name: string; type: string }> = []
   const macAuthWLANs: string[] = []
+  const pskWithoutPassphrase: string[] = []
+  const aaaWLANs: string[] = []
 
   data.wlans.forEach((wlan) => {
-    if (!securityMapping[wlan.type]) {
-      unmappedTypes.add(wlan.type)
+    const mappedType = securityMapping[wlan.type]
+
+    // Check for unmapped security types
+    if (!mappedType) {
+      unmappedWLANs.push({ name: wlan.name, type: wlan.type })
     }
 
+    // Check for PSK WLANs without passphrases
+    if (mappedType === 'psk' && !wlan.passphrase) {
+      pskWithoutPassphrase.push(wlan.name)
+    }
+
+    // Track AAA WLANs for RADIUS configuration warning
+    if (mappedType === 'aaa') {
+      aaaWLANs.push(wlan.name)
+    }
+
+    // Track MAC authentication specifically
     if (wlan.type === 'Standard_MAC') {
       macAuthWLANs.push(wlan.name)
     }
   })
 
-  if (unmappedTypes.size > 0) {
+  // Report unmapped security types with actual WLAN names
+  if (unmappedWLANs.length > 0) {
     issues.push({
       severity: 'warning',
       category: 'wlan',
-      message: `${unmappedTypes.size} unknown security types detected`,
-      affectedItems: Array.from(unmappedTypes),
+      message: `${unmappedWLANs.length} WLAN(s) with unknown security types`,
+      affectedItems: unmappedWLANs.map((w) => `${w.name} (${w.type})`),
       suggestion: 'Review these WLANs manually and configure security settings in RUCKUS One',
     })
   }
 
+  // Report PSK WLANs missing passphrases (ERROR - will fail in R1)
+  if (pskWithoutPassphrase.length > 0) {
+    issues.push({
+      severity: 'error',
+      category: 'wlan',
+      message: `${pskWithoutPassphrase.length} PSK WLAN(s) missing passphrase`,
+      affectedItems: pskWithoutPassphrase,
+      suggestion:
+        'Set passphrases manually in RUCKUS One after migration, or re-extract from SmartZone with proper permissions',
+    })
+  }
+
+  // Recommend RADIUS configuration for all AAA WLANs
+  if (aaaWLANs.length > 0) {
+    recommendations.push(
+      `${aaaWLANs.length} WLAN(s) use 802.1X/AAA authentication. Ensure RADIUS servers are configured in RUCKUS One before activating these networks: ${aaaWLANs.join(', ')}`
+    )
+  }
+
+  // Additional warning for MAC authentication (specific type of AAA)
   if (macAuthWLANs.length > 0) {
     recommendations.push(
-      `${macAuthWLANs.length} WLANs use MAC authentication. Configure RADIUS servers in RUCKUS One for AAA.`
+      `${macAuthWLANs.length} WLAN(s) use MAC authentication. Verify MAC-based RADIUS configuration in RUCKUS One: ${macAuthWLANs.join(', ')}`
     )
   }
 }

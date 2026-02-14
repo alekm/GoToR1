@@ -72,7 +72,8 @@ export function transformWLANsToNetworks(wlans: SZWLAN[], zones: SZZone[]): R1Ne
     const zone = zones.find((z) => z.id === wlan.zoneId)
     const securityType = mapSecurityType(wlan.type)
 
-    return {
+    // Base network configuration
+    const network: R1Network & { _zoneName?: string } = {
       name: wlan.name,
       wlan: {
         ssid: wlan.ssid,
@@ -82,9 +83,27 @@ export function transformWLANsToNetworks(wlans: SZWLAN[], zones: SZZone[]): R1Ne
         vlanId: wlan.vlan?.accessVlan,
       },
       sourceWlanId: wlan.id,
-      // Zone name added as metadata for reference
       _zoneName: zone?.name,
-    } as R1Network & { _zoneName?: string }
+    }
+
+    // Add passphrase for PSK networks
+    if (securityType === 'psk' && wlan.passphrase) {
+      network.wlan.passphrase = wlan.passphrase
+    }
+
+    // Add AAA service references if available (must be manually mapped to R1 services)
+    if (securityType === 'aaa') {
+      // Note: authService and accountingService IDs from SmartZone won't match R1
+      // These will need to be manually mapped in Step 7 or later
+      if (wlan.authService?.id) {
+        network.authServiceOrProfile = { id: wlan.authService.id }
+      }
+      if (wlan.accountingService?.id) {
+        network.accountingServiceOrProfile = { id: wlan.accountingService.id }
+      }
+    }
+
+    return network
   })
 }
 

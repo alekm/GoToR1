@@ -247,19 +247,49 @@ export async function getZones(config: SmartZoneConfig): Promise<SZZone[]> {
 
 /**
  * Get WLANs for a specific zone
+ * Uses two-step fetch: list endpoint (basic info) + individual detail endpoints (full config)
  */
 export async function getWLANs(config: SmartZoneConfig, zoneId: string): Promise<SZWLAN[]> {
-  interface WLANResponse {
-    list?: SZWLAN[]
+  interface WLANListResponse {
+    list?: Array<{ id: string; name: string; ssid?: string }>
     totalCount?: number
   }
 
-  const response = await apiRequest<WLANResponse>(
+  // Step 1: Get WLAN list (basic info only - no type, encryption, vlan, passphrase)
+  const listResponse = await apiRequest<WLANListResponse>(
     config,
     `/wsg/api/public/v13_1/rkszones/${encodeURIComponent(zoneId)}/wlans`
   )
 
-  return response.list || []
+  const wlanList = listResponse.list || []
+  if (wlanList.length === 0) {
+    return []
+  }
+
+  // Step 2: Fetch full details for each WLAN to get type, encryption, vlan, passphrase
+  const fullWLANs: SZWLAN[] = []
+  for (const wlanSummary of wlanList) {
+    try {
+      // Fetch individual WLAN details
+      const fullWLAN = await apiRequest<SZWLAN>(
+        config,
+        `/wsg/api/public/v13_1/rkszones/${encodeURIComponent(zoneId)}/wlans/${encodeURIComponent(wlanSummary.id)}`
+      )
+      fullWLANs.push(fullWLAN)
+    } catch (err) {
+      console.warn(`Failed to fetch details for WLAN ${wlanSummary.name} (ID: ${wlanSummary.id}):`, err)
+      // Fallback: Use summary data and mark as unknown type
+      fullWLANs.push({
+        id: wlanSummary.id,
+        zoneId,
+        name: wlanSummary.name,
+        ssid: wlanSummary.ssid || wlanSummary.name, // Fallback assumption
+        type: 'Unknown',  // Mark for manual review
+      })
+    }
+  }
+
+  return fullWLANs
 }
 
 /**

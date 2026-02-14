@@ -108,6 +108,15 @@ export interface SZWLAN {
   vlan?: {
     accessVlan: number
   }
+  passphrase?: string                 // For PSK networks only
+  authService?: {                     // For AAA networks (if available from SZ)
+    id: string
+    name: string
+  }
+  accountingService?: {               // For AAA networks (if available from SZ)
+    id: string
+    name: string
+  }
 }
 
 export interface SZAPGroup {
@@ -214,6 +223,13 @@ export interface R1Network {
     wlanSecurity: string              // 'open', 'wpa2-personal', 'wpa2-enterprise'
     encryption?: string               // 'aes'
     vlanId?: number
+    passphrase?: string               // For PSK networks only
+  }
+  authServiceOrProfile?: {            // For AAA networks (optional - must exist in R1)
+    id: string
+  }
+  accountingServiceOrProfile?: {      // For AAA networks (optional - must exist in R1)
+    id: string
   }
   sourceWlanId: string
   r1NetworkId?: string                // Set after creation
