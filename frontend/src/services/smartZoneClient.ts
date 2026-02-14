@@ -1,0 +1,429 @@
+/**
+ * SmartZone API Client
+ *
+ * Handles authentication and API calls to RUCKUS SmartZone Controller
+ * Based on vSZ Public API v9_1 (6.x) and v10_0 (7.x)
+ * Official API Docs: https://docs.ruckuswireless.com/smartzone/7.1.1/vszh-public-api-reference-guide-711.html
+ */
+
+import type {
+  SmartZoneConfig,
+  SZZone,
+  SZWLAN,
+  SZAPGroup,
+  SZAccessPoint,
+  SZSwitch,
+  SmartZoneData,
+} from '../types/migration'
+
+// Session management
+const SESSION_COOKIE_PREFIX = 'gotor1_sz_session_'
+
+function sessionKey(config: SmartZoneConfig): string {
+  return `${SESSION_COOKIE_PREFIX}${encodeURIComponent(config.host)}_${config.port}`
+}
+
+function setCookie(name: string, value: string, maxAgeSeconds: number) {
+  document.cookie = `${name}=${encodeURIComponent(value)}; Max-Age=${Math.max(0, Math.floor(maxAgeSeconds))}; Path=/; SameSite=Lax`
+}
+
+function getCookie(name: string): string | null {
+  const match = document.cookie.match(
+    new RegExp('(?:^|; )' + name.replace(/([.$?*|{}()[\]\\/+^])/g, '\\$1') + '=([^;]*)')
+  )
+  return match ? decodeURIComponent(match[1]) : null
+}
+
+function clearCookie(name: string) {
+  document.cookie = `${name}=; Max-Age=0; Path=/`
+}
+
+/**
+ * Build SmartZone API URL
+ * Always uses Netlify function (works in both dev with `netlify dev` and production)
+ */
+function buildUrl(config: SmartZoneConfig, path: string): string {
+  const url = new URL('/.netlify/functions/sz-proxy', window.location.origin)
+  url.searchParams.set('host', config.host)
+  url.searchParams.set('port', config.port.toString())
+  url.searchParams.set('path', path)
+  return url.toString()
+}
+
+/**
+ * Detect SmartZone API version
+ */
+async function detectApiVersion(config: SmartZoneConfig): Promise<string> {
+  // Try v13_1 first (vSZ 7.1.1), then v10_0 (vSZ 7.0), then v9_1 (vSZ 6.x)
+  const versions = ['v13_1', 'v10_0', 'v9_1', 'v9_0', 'v8_0']
+
+  for (const version of versions) {
+    try {
+      const url = buildUrl(config, `/wsg/api/public/${version}/systemInfo`)
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+        },
+      })
+
+      if (response.ok) {
+        return version
+      }
+    } catch (err) {
+      // Continue to next version
+      continue
+    }
+  }
+
+  // Default to v10_0 if detection fails
+  return 'v10_0'
+}
+
+/**
+ * Authenticate with SmartZone and get session cookie
+ */
+async function authenticate(config: SmartZoneConfig): Promise<string> {
+  const key = sessionKey(config)
+  const existingSession = getCookie(key)
+
+  if (existingSession) {
+    // Validate existing session
+    try {
+      const testUrl = buildUrl(config, `/wsg/api/public/${config.apiVersion}/session`)
+      const testResponse = await fetch(testUrl, {
+        method: 'GET',
+        headers: {
+          'Cookie': `JSESSIONID=${existingSession}`,
+        },
+      })
+
+      if (testResponse.ok) {
+        return existingSession
+      }
+    } catch {
+      // Session invalid, clear it
+      clearCookie(key)
+    }
+  }
+
+  // Create new session
+  if (config.authType === 'apikey') {
+    throw new Error('API Key authentication not yet implemented. Please use username/password.')
+  }
+
+  // Use v10_0 for session (authentication), but v13_1 for resources (vSZ 7.1.1)
+  const loginUrl = buildUrl(config, `/wsg/api/public/v10_0/session`)
+  const response = await fetch(loginUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    },
+    body: JSON.stringify({
+      username: config.credentials.username,
+      password: config.credentials.password,
+    }),
+  })
+
+  if (!response.ok) {
+    let errorDetail = ''
+    try {
+      const errorData = await response.json()
+      errorDetail = JSON.stringify(errorData)
+    } catch {
+      errorDetail = await response.text()
+    }
+    throw new Error(`Authentication failed: ${response.status} ${response.statusText}${errorDetail ? ` - ${errorDetail}` : ''}`)
+  }
+
+  // Extract session ID from response body (injected by proxy)
+  try {
+    const data = await response.json()
+
+    // Check for session ID injected by proxy
+    if (data._sessionId) {
+      setCookie(key, data._sessionId, 3600)
+      return data._sessionId
+    }
+
+    // Some deployments return session in response body
+    if (data.sessionId) {
+      setCookie(key, data.sessionId, 3600)
+      return data.sessionId
+    }
+  } catch (err) {
+    console.error('Failed to parse session response:', err)
+  }
+
+  throw new Error('Failed to extract session ID from authentication response')
+}
+
+/**
+ * Make authenticated API request to SmartZone
+ */
+async function apiRequest<T>(
+  config: SmartZoneConfig,
+  path: string,
+  options: RequestInit = {}
+): Promise<T> {
+  const sessionId = await authenticate(config)
+  const url = buildUrl(config, path)
+
+  const response = await fetch(url, {
+    ...options,
+    headers: {
+      'Accept': 'application/json',
+      'Content-Type': 'application/json',
+      'X-Session-ID': sessionId, // Pass session via custom header (proxy will convert to Cookie)
+      ...options.headers,
+    },
+  })
+
+  if (!response.ok) {
+    let errorDetail = ''
+    try {
+      errorDetail = JSON.stringify(await response.json())
+    } catch {
+      try {
+        errorDetail = await response.text()
+      } catch {
+        errorDetail = 'Unable to parse error response'
+      }
+    }
+    throw new Error(
+      `API request failed: ${response.status} ${response.statusText}${errorDetail ? ` - ${errorDetail}` : ''}`
+    )
+  }
+
+  return response.json()
+}
+
+/**
+ * Test SmartZone connection
+ */
+export async function testConnection(
+  config: SmartZoneConfig
+): Promise<{ success: boolean; version?: string; error?: string }> {
+  try {
+    // Auto-detect API version if not set
+    if (!config.apiVersion || config.apiVersion === 'auto') {
+      const detectedVersion = await detectApiVersion(config)
+      config.apiVersion = detectedVersion
+    }
+
+    // Try to authenticate - if this succeeds, connection is valid
+    await authenticate(config)
+
+    return {
+      success: true,
+      version: config.apiVersion,
+    }
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : 'Unknown error',
+    }
+  }
+}
+
+/**
+ * Get all zones from SmartZone
+ */
+export async function getZones(config: SmartZoneConfig): Promise<SZZone[]> {
+  interface ZoneResponse {
+    list?: SZZone[]
+    totalCount?: number
+  }
+
+  // Use v13_1 for resource endpoints (vSZ 7.1.1)
+  const response = await apiRequest<ZoneResponse>(
+    config,
+    `/wsg/api/public/v13_1/rkszones`
+  )
+
+  return response.list || []
+}
+
+/**
+ * Get WLANs for a specific zone
+ */
+export async function getWLANs(config: SmartZoneConfig, zoneId: string): Promise<SZWLAN[]> {
+  interface WLANResponse {
+    list?: SZWLAN[]
+    totalCount?: number
+  }
+
+  const response = await apiRequest<WLANResponse>(
+    config,
+    `/wsg/api/public/v13_1/rkszones/${encodeURIComponent(zoneId)}/wlans`
+  )
+
+  return response.list || []
+}
+
+/**
+ * Get AP Groups for a specific zone
+ */
+export async function getAPGroups(config: SmartZoneConfig, zoneId: string): Promise<SZAPGroup[]> {
+  interface APGroupResponse {
+    list?: SZAPGroup[]
+    totalCount?: number
+  }
+
+  const response = await apiRequest<APGroupResponse>(
+    config,
+    `/wsg/api/public/v13_1/rkszones/${encodeURIComponent(zoneId)}/apgroups`
+  )
+
+  return response.list || []
+}
+
+/**
+ * Get Access Points for a specific zone
+ */
+export async function getAccessPoints(
+  config: SmartZoneConfig,
+  zoneId: string
+): Promise<SZAccessPoint[]> {
+  interface APResponse {
+    list?: SZAccessPoint[]
+    totalCount?: number
+    hasMore?: boolean
+  }
+
+  let allAPs: SZAccessPoint[] = []
+  let index = 0
+  const limit = 100 // Fetch in batches of 100
+
+  while (true) {
+    const response = await apiRequest<APResponse>(
+      config,
+      `/wsg/api/public/v13_1/aps?zoneId=${encodeURIComponent(zoneId)}&index=${index}&listSize=${limit}`
+    )
+
+    const aps = response.list || []
+    allAPs = allAPs.concat(aps)
+
+    if (!response.hasMore || aps.length < limit) {
+      break
+    }
+
+    index += limit
+  }
+
+  return allAPs
+}
+
+/**
+ * Get Switches (if SmartZone-managed)
+ */
+export async function getSwitches(config: SmartZoneConfig): Promise<SZSwitch[]> {
+  try {
+    interface SwitchResponse {
+      list?: SZSwitch[]
+      totalCount?: number
+    }
+
+    const response = await apiRequest<SwitchResponse>(
+      config,
+      `/wsg/api/public/v13_1/switch`
+    )
+
+    return response.list || []
+  } catch (err) {
+    // Switch management might not be available on all SmartZone deployments
+    console.warn('Failed to fetch switches from SmartZone:', err)
+    return []
+  }
+}
+
+/**
+ * Extract all data from SmartZone for selected zones
+ */
+export async function extractData(
+  config: SmartZoneConfig,
+  selectedZoneIds: string[],
+  onProgress?: (stage: string, current: number, total: number) => void
+): Promise<SmartZoneData> {
+  const data: SmartZoneData = {
+    zones: [],
+    wlans: [],
+    apGroups: [],
+    accessPoints: [],
+    switches: [],
+    extractedAt: new Date().toISOString(),
+    totalItems: {
+      zones: 0,
+      wlans: 0,
+      apGroups: 0,
+      aps: 0,
+      switches: 0,
+    },
+  }
+
+  // Fetch all zones first
+  onProgress?.('zones', 0, 1)
+  const allZones = await getZones(config)
+  data.zones = allZones.filter((zone) => selectedZoneIds.includes(zone.id))
+  data.totalItems.zones = data.zones.length
+  onProgress?.('zones', 1, 1)
+
+  // Fetch WLANs, AP Groups, and APs for each selected zone
+  for (let i = 0; i < data.zones.length; i++) {
+    const zone = data.zones[i]
+
+    // WLANs
+    onProgress?.('wlans', i, data.zones.length)
+    const wlans = await getWLANs(config, zone.id)
+    data.wlans.push(...wlans)
+
+    // AP Groups
+    onProgress?.('apGroups', i, data.zones.length)
+    const apGroups = await getAPGroups(config, zone.id)
+    data.apGroups.push(...apGroups)
+
+    // Access Points
+    onProgress?.('aps', i, data.zones.length)
+    const aps = await getAccessPoints(config, zone.id)
+    data.accessPoints.push(...aps)
+  }
+
+  onProgress?.('wlans', data.zones.length, data.zones.length)
+  onProgress?.('apGroups', data.zones.length, data.zones.length)
+  onProgress?.('aps', data.zones.length, data.zones.length)
+
+  data.totalItems.wlans = data.wlans.length
+  data.totalItems.apGroups = data.apGroups.length
+  data.totalItems.aps = data.accessPoints.length
+
+  // Fetch switches (SmartZone-managed only)
+  onProgress?.('switches', 0, 1)
+  const switches = await getSwitches(config)
+  data.switches = switches
+  data.totalItems.switches = switches.length
+  onProgress?.('switches', 1, 1)
+
+  return data
+}
+
+/**
+ * Logout and clear session
+ */
+export async function logout(config: SmartZoneConfig): Promise<void> {
+  try {
+    const sessionId = getCookie(sessionKey(config))
+    if (sessionId) {
+      await fetch(buildUrl(config, `/wsg/api/public/${config.apiVersion}/session`), {
+        method: 'DELETE',
+        headers: {
+          'Cookie': `JSESSIONID=${sessionId}`,
+        },
+      })
+    }
+  } catch {
+    // Ignore errors during logout
+  } finally {
+    clearCookie(sessionKey(config))
+  }
+}

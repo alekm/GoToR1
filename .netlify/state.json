@@ -1,0 +1,20 @@
+{
+	"geolocation": {
+		"data": {
+			"city": "Glasgow",
+			"country": {
+				"code": "US",
+				"name": "United States"
+			},
+			"subdivision": {
+				"code": "KY",
+				"name": "Kentucky"
+			},
+			"timezone": "America/Chicago",
+			"latitude": 36.9904,
+			"longitude": -85.9239,
+			"postalCode": "42141"
+		},
+		"timestamp": 1771041844341
+	}
+}

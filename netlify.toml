@@ -1,0 +1,18 @@
+[build]
+  command = "cd frontend && npm run build"
+  publish = "frontend/dist"
+  functions = "netlify/functions"
+
+[dev]
+  command = "npm run dev --prefix frontend"
+  port = 8888
+  targetPort = 5175
+  autoLaunch = false
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+[functions]
+  node_bundler = "esbuild"
