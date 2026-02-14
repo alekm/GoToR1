@@ -198,6 +198,7 @@ export default function Home() {
                       <Download size={18} />
                     </button>
                     <button
+                      type="button"
                       onClick={() => handleDeleteProject(project.id, project.name)}
                       className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                       title="Delete project"
