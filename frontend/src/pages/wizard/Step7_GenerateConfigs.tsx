@@ -5,7 +5,7 @@
  */
 
 import { useState, useEffect } from 'react'
-import { CheckCircle, Wifi, Radio, Loader, AlertCircle, Eye } from 'lucide-react'
+import { CheckCircle, Wifi, Radio, Loader, AlertCircle } from 'lucide-react'
 import {
   createWifiNetwork,
   createAPGroup,
@@ -15,7 +15,7 @@ import {
   type RuckusOneCredentials,
 } from '../../services/ruckusOneClient'
 import { transformWLANsToNetworks, transformAPGroups } from '../../services/dataTransformer'
-import type { SmartZoneData, RuckusOneConfig, SZWLAN, SZAPGroup } from '../../types/migration'
+import type { SmartZoneData, RuckusOneConfig } from '../../types/migration'
 
 interface Step7_GenerateConfigsProps {
   projectId: string
@@ -33,14 +33,13 @@ export default function Step7_GenerateConfigs({
   onComplete,
   onBack,
 }: Step7_GenerateConfigsProps) {
-  const [generatedNetworks, setGeneratedNetworks] = useState<Array<R1WifiNetwork & { szWlanId: string }>>([])
-  const [generatedAPGroups, setGeneratedAPGroups] = useState<Array<R1APGroup & { szApGroupId: string }>>([])
+  const [generatedNetworks, setGeneratedNetworks] = useState<Array<R1WifiNetwork & { szWlanId: string; _zoneName?: string }>>([])
+  const [generatedAPGroups, setGeneratedAPGroups] = useState<Array<R1APGroup & { szApGroupId: string; _zoneName?: string }>>([])
   const [creating, setCreating] = useState(false)
   const [currentPhase, setCurrentPhase] = useState<'idle' | 'wlans' | 'apgroups' | 'complete'>('idle')
   const [createdWLANs, setCreatedWLANs] = useState<string[]>([])
   const [createdAPGroups, setCreatedAPGroups] = useState<string[]>([])
   const [errors, setErrors] = useState<string[]>([])
-  const [showPreview, setShowPreview] = useState<string | null>(null)
 
   const r1Credentials: RuckusOneCredentials = {
     tenantId: ruckusOneConfig.tenantId,

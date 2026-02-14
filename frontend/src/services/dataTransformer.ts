@@ -272,7 +272,7 @@ export function getEncryptionType(encryption?: { method: string; algorithm: stri
 /**
  * Generate venue address from zone info (if available)
  */
-export function generateVenueAddress(zone: SZZone): string | undefined {
+export function generateVenueAddress(_zone: SZZone): string | undefined {
   // SmartZone zones don't typically have address info
   // This would need to be set manually in Step 6
   return undefined

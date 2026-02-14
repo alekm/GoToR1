@@ -16,7 +16,7 @@ import type { SmartZoneConfig, SmartZoneData, MigrationStep } from '../types/mig
 export default function MigrationWizard() {
   const { projectId } = useParams<{ projectId: string }>()
   const navigate = useNavigate()
-  const { project, loading, updateStatus, refresh } = useMigrationProject(projectId)
+  const { project, loading, refresh } = useMigrationProject(projectId)
   const [currentStep, setCurrentStep] = useState<MigrationStep>('connect')
 
   useEffect(() => {

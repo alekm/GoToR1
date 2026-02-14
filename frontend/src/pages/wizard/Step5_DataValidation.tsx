@@ -6,8 +6,8 @@
 
 import { useState, useEffect } from 'react'
 import { CheckCircle, AlertCircle, AlertTriangle, Info, X } from 'lucide-react'
-import { validateData, getSeverityColor, hasBlockingIssues } from '../../services/validator'
-import type { SmartZoneData, ValidationReport, ValidationIssue, Conflict } from '../../types/migration'
+import { validateData, hasBlockingIssues } from '../../services/validator'
+import type { SmartZoneData, ValidationReport } from '../../types/migration'
 
 interface Step5DataValidationProps {
   projectId: string

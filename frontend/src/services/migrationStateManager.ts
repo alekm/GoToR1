@@ -272,8 +272,7 @@ class MigrationStateManager {
     const project = await this.getProject(projectId)
     if (!project) throw new Error(`Project ${projectId} not found`)
 
-    project.currentStep = step
-    await this.updateProject(project)
+    await this.updateProject(projectId, { currentStep: step })
     await this.log(projectId, 'info', `Project step changed to: ${step}`)
   }
 
@@ -327,8 +326,7 @@ class MigrationStateManager {
     // Update project
     const project = await this.getProject(projectId)
     if (project) {
-      project.extractedData = data
-      await this.updateProject(project)
+      await this.updateProject(projectId, { extractedData: data })
     }
 
     await this.log(
@@ -366,8 +364,7 @@ class MigrationStateManager {
     // Update project
     const project = await this.getProject(projectId)
     if (project) {
-      project.transformedData = data
-      await this.updateProject(project)
+      await this.updateProject(projectId, { transformedData: data })
     }
 
     await this.log(projectId, 'success', 'Transformed data saved')
@@ -401,8 +398,7 @@ class MigrationStateManager {
     // Update project
     const project = await this.getProject(projectId)
     if (project) {
-      project.validationReport = report
-      await this.updateProject(project)
+      await this.updateProject(projectId, { validationReport: report })
     }
 
     await this.log(
@@ -441,8 +437,8 @@ class MigrationStateManager {
     // Update project
     const project = await this.getProject(projectId)
     if (project) {
-      project.checkpoints.push(checkpoint)
-      await this.updateProject(project)
+      const updatedCheckpoints = [...(project.checkpoints || []), checkpoint]
+      await this.updateProject(projectId, { checkpoints: updatedCheckpoints })
     }
 
     await this.log(projectId, 'info', `Checkpoint created: ${checkpoint.stage}`)

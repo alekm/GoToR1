@@ -6,13 +6,13 @@
 
 import { createContext, useContext, useState, useEffect } from 'react'
 import type { ReactNode } from 'react'
-import type { RuckusCredentials } from '../services/ruckusOneClient'
+import type { RuckusOneCredentials } from '../services/ruckusOneClient'
 import type { RuckusRegion } from '../services/apiClient'
 
 interface AuthContextType {
-  credentials: RuckusCredentials | null
+  credentials: RuckusOneCredentials | null
   isConfigured: boolean
-  saveCredentials: (creds: RuckusCredentials) => void
+  saveCredentials: (creds: RuckusOneCredentials) => void
   clearCredentials: () => void
 }
 
@@ -21,7 +21,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 const STORAGE_KEY = 'gotor1_r1_credentials'
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [credentials, setCredentials] = useState<RuckusCredentials | null>(null)
+  const [credentials, setCredentials] = useState<RuckusOneCredentials | null>(null)
 
   // Load credentials from localStorage on mount
   useEffect(() => {
@@ -36,7 +36,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  const saveCredentials = (creds: RuckusCredentials) => {
+  const saveCredentials = (creds: RuckusOneCredentials) => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(creds))
       setCredentials(creds)
@@ -84,7 +84,7 @@ export function useAuth() {
 }
 
 // Helper to get default credentials structure
-export function getDefaultCredentials(): RuckusCredentials {
+export function getDefaultCredentials(): RuckusOneCredentials {
   return {
     region: 'na' as RuckusRegion,
     tenantId: '',

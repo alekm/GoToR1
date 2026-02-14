@@ -6,8 +6,8 @@
 
 import { useState } from 'react'
 import { CheckCircle, Building2, MapPin, Loader, AlertCircle } from 'lucide-react'
-import { createVenue, listVenues, type R1Venue, type RuckusOneCredentials } from '../../services/ruckusOneClient'
-import type { SmartZoneData, RuckusOneConfig, SZZone } from '../../types/migration'
+import { createVenue, type R1Venue, type RuckusOneCredentials } from '../../services/ruckusOneClient'
+import type { SmartZoneData, RuckusOneConfig } from '../../types/migration'
 
 interface Step6_CreateVenuesProps {
   projectId: string
@@ -177,7 +177,7 @@ export default function Step6_CreateVenues({
       <div className="space-y-6">
         {extractedData.zones.map((zone) => {
           const formData = venueMapping[zone.id]
-          const isCreated = createdVenues[zone.id]
+          const isCreated = !!createdVenues[zone.id]
 
           return (
             <div
