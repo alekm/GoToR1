@@ -11,6 +11,7 @@ import { migrationStateManager } from '../services/migrationStateManager'
 import Step2_ConnectSZ from './wizard/Step2_ConnectSZ'
 import Step3_ExtractData from './wizard/Step3_ExtractData'
 import Step4_ReviewExtractedData from './wizard/Step4_ReviewExtractedData'
+import Step5_DataValidation from './wizard/Step5_DataValidation'
 import type { SmartZoneConfig, SmartZoneData, MigrationStep } from '../types/migration'
 
 export default function MigrationWizard() {
@@ -91,17 +92,35 @@ export default function MigrationWizard() {
         currentStep: 'validate',
         status: 'validating',
       })
+      await refresh()
       setCurrentStep('validate')
-      // TODO: Navigate to Step 5 when implemented
-      alert('Step 5 (Data Validation) coming soon...')
     } catch (err) {
       console.error('Failed to save reviewed data:', err)
       alert('Failed to save data. Please try again.')
     }
   }
 
+  const handleValidationComplete = async () => {
+    try {
+      // Update project to next step
+      await migrationStateManager.updateProject(projectId, {
+        currentStep: 'venues',
+        status: 'ready',
+      })
+      await refresh()
+      setCurrentStep('venues')
+      // TODO: Navigate to Step 6 when implemented
+      alert('Steps 6-10 coming soon...')
+    } catch (err) {
+      console.error('Failed to proceed to venue creation:', err)
+      alert('Failed to proceed. Please try again.')
+    }
+  }
+
   const handleBack = () => {
-    if (currentStep === 'review') {
+    if (currentStep === 'validate') {
+      setCurrentStep('review')
+    } else if (currentStep === 'review') {
       setCurrentStep('extract')
     } else if (currentStep === 'extract') {
       setCurrentStep('connect')
@@ -132,7 +151,11 @@ export default function MigrationWizard() {
               4. Review
             </span>
             <span className="text-gray-300">→</span>
-            <span className="text-gray-500">5-10. Migration</span>
+            <span className={currentStep === 'validate' ? 'font-bold' : 'text-gray-500'}>
+              5. Validate
+            </span>
+            <span className="text-gray-300">→</span>
+            <span className="text-gray-500">6-10. Migration</span>
           </div>
         </div>
       </div>
@@ -161,6 +184,15 @@ export default function MigrationWizard() {
           projectId={projectId}
           extractedData={project.extractedData}
           onComplete={handleReviewComplete}
+          onBack={handleBack}
+        />
+      )}
+
+      {currentStep === 'validate' && project.extractedData && (
+        <Step5_DataValidation
+          projectId={projectId}
+          extractedData={project.extractedData}
+          onComplete={handleValidationComplete}
           onBack={handleBack}
         />
       )}
