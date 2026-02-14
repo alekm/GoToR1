@@ -121,11 +121,11 @@ export default function MigrationWizard() {
       // Save venue mapping and proceed to next step
       await migrationStateManager.updateProject(projectId, {
         venueMapping,
-        currentStep: 'networks',
-        status: 'configuring',
+        currentStep: 'configs',
+        status: 'ready',
       })
       await refresh()
-      setCurrentStep('networks')
+      setCurrentStep('configs')
       // TODO: Navigate to Step 7 when implemented
       alert('Steps 7-10 coming soon...')
     } catch (err) {
