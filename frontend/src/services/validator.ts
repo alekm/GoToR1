@@ -45,6 +45,7 @@ export function validateData(data: SmartZoneData): ValidationReport {
     totalWLANs: data.totalItems.wlans,
     totalAPGroups: data.totalItems.apGroups,
     totalVenues: data.totalItems.zones,
+    totalSwitches: data.totalItems.switches,
     errors: issues.filter((i) => i.severity === 'error').length,
     warnings: issues.filter((i) => i.severity === 'warning').length,
     conflicts: conflicts.filter((c) => c.severity === 'blocker').length,
