@@ -67,14 +67,24 @@ export const handler: Handler = async (event: HandlerEvent, context: HandlerCont
       responseData = responseText
     }
 
+    // Forward important headers from RUCKUS One API
+    const responseHeaders: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Headers': 'Content-Type, login-token, Login-Token',
+      'Access-Control-Allow-Methods': 'POST, OPTIONS',
+      'Access-Control-Expose-Headers': 'login-token, Login-Token', // Allow client to read these headers
+    }
+
+    // Forward login-token header if present (used by some RUCKUS One deployments)
+    const loginToken = response.headers.get('login-token') || response.headers.get('Login-Token')
+    if (loginToken) {
+      responseHeaders['login-token'] = loginToken
+    }
+
     return {
       statusCode: response.status,
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'Content-Type',
-        'Access-Control-Allow-Methods': 'POST, OPTIONS',
-      },
+      headers: responseHeaders,
       body: JSON.stringify(responseData),
     }
   } catch (error) {
