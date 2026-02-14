@@ -162,49 +162,6 @@ export interface SZSwitchPort {
 }
 
 // ============================================================================
-// VALIDATION REPORT
-// ============================================================================
-
-export interface ValidationReport {
-  timestamp: string
-  summary: {
-    totalAPs: number
-    totalWLANs: number
-    totalAPGroups: number
-    totalVenues: number
-    errors: number
-    warnings: number
-    conflicts: number
-  }
-  issues: ValidationIssue[]
-  conflicts: Conflict[]
-  unsupportedFeatures: UnsupportedFeature[]
-  recommendations: string[]
-}
-
-export interface ValidationIssue {
-  severity: 'error' | 'warning' | 'info'
-  category: 'ap' | 'wlan' | 'apgroup' | 'venue' | 'dependency'
-  message: string
-  affectedItems: string[]
-  suggestion?: string
-}
-
-export interface Conflict {
-  type: 'duplicate_name' | 'duplicate_serial' | 'missing_dependency'
-  severity: 'blocker' | 'warning'
-  items: Array<{ source: 'smartzone' | 'ruckusone'; id: string; name: string }>
-  resolution?: string
-}
-
-export interface UnsupportedFeature {
-  feature: string
-  type: 'wlan' | 'apgroup' | 'policy'
-  affectedItems: string[]
-  workaround?: string
-}
-
-// ============================================================================
 // RUCKUS ONE CONFIGURATION
 // ============================================================================
 
