@@ -20,18 +20,18 @@ import type {
 } from '../types/migration'
 
 /**
- * Security type mapping from SmartZone to RUCKUS One
+ * Security type mapping from SmartZone to RUCKUS One API types
  */
-const SECURITY_TYPE_MAP: Record<string, string> = {
-  Standard_Open: 'open',
-  Standard: 'psk',
-  Standard_8021X: 'aaa',
-  Standard_MAC: 'aaa', // MAC auth uses AAA in R1
-  Hotspot: 'open', // Simplified - actual Hotspot config more complex
-  'Hotspot_MAC': 'aaa',
-  'Hotspot_8021X': 'aaa',
-  Guest: 'open',
-  Web_Auth: 'open',
+const SECURITY_TYPE_MAP: Record<string, 'STANDARD_OPEN' | 'STANDARD' | 'STANDARD_8021X'> = {
+  Standard_Open: 'STANDARD_OPEN',
+  Standard: 'STANDARD',
+  Standard_8021X: 'STANDARD_8021X',
+  Standard_MAC: 'STANDARD_8021X', // MAC auth uses 802.1X in R1
+  Hotspot: 'STANDARD_OPEN', // Simplified - actual Hotspot config more complex
+  'Hotspot_MAC': 'STANDARD_8021X',
+  'Hotspot_8021X': 'STANDARD_8021X',
+  Guest: 'STANDARD_OPEN',
+  Web_Auth: 'STANDARD_OPEN',
 }
 
 /**
@@ -70,29 +70,44 @@ export function transformZonesToVenues(zones: SZZone[]): R1Venue[] {
 export function transformWLANsToNetworks(wlans: SZWLAN[], zones: SZZone[]): R1Network[] {
   return wlans.map((wlan) => {
     const zone = zones.find((z) => z.id === wlan.zoneId)
-    const securityType = mapSecurityType(wlan.type)
+    const r1Type = mapSecurityType(wlan.type)
 
-    // Base network configuration
+    // Base network configuration (R1 API format)
     const network: R1Network & { _zoneName?: string } = {
       name: wlan.name,
-      wlan: {
-        ssid: wlan.ssid,
-        enabled: true,
-        wlanSecurity: securityType,
-        encryption: wlan.encryption?.method === 'AES' ? 'aes' : undefined,
-        vlanId: wlan.vlan?.accessVlan,
-      },
+      ssid: wlan.ssid,
+      type: r1Type,
+      enabled: true,
       sourceWlanId: wlan.id,
       _zoneName: zone?.name,
     }
 
-    // Add passphrase for PSK networks
-    if (securityType === 'psk' && wlan.passphrase) {
-      network.wlan.passphrase = wlan.passphrase
+    // Add encryption for PSK and AAA networks
+    if (r1Type === 'STANDARD' || r1Type === 'STANDARD_8021X') {
+      network.encryption = {
+        method: wlan.encryption?.method === 'WPA' ? 'WPA' : 'AES',
+        algorithm: wlan.encryption?.algorithm === 'TKIP' ? 'TKIP' : 'AES',
+      }
+    } else {
+      // Open network
+      network.encryption = { method: 'None' }
+    }
+
+    // Add passphrase for PSK networks (REQUIRED for type='STANDARD')
+    if (r1Type === 'STANDARD') {
+      if (wlan.passphrase) {
+        network.passphrase = wlan.passphrase
+      }
+      // Note: If passphrase is missing, validator will flag this as an error
+    }
+
+    // Add VLAN if configured
+    if (wlan.vlan?.accessVlan) {
+      network.vlan = { accessVlan: wlan.vlan.accessVlan }
     }
 
     // Add AAA service references if available (must be manually mapped to R1 services)
-    if (securityType === 'aaa') {
+    if (r1Type === 'STANDARD_8021X') {
       // Note: authService and accountingService IDs from SmartZone won't match R1
       // These will need to be manually mapped in Step 7 or later
       if (wlan.authService?.id) {
@@ -107,8 +122,8 @@ export function transformWLANsToNetworks(wlans: SZWLAN[], zones: SZZone[]): R1Ne
   })
 }
 
-function mapSecurityType(szType: string): string {
-  return SECURITY_TYPE_MAP[szType] || 'open'
+function mapSecurityType(szType: string): 'STANDARD_OPEN' | 'STANDARD' | 'STANDARD_8021X' {
+  return SECURITY_TYPE_MAP[szType] || 'STANDARD_OPEN'
 }
 
 // ============================================================================
@@ -154,15 +169,15 @@ export function transformAccessPoints(
     }
 
     return {
-      name: ap.name,
-      serialNumber: ap.serial,
+      name: sanitizeAPName(ap.name),
+      serialNumber: sanitizeSerial(ap.serial),
       description: ap.description || `Migrated from SmartZone zone: ${zone?.name || ap.zoneId}`,
       model: ap.model,
       tags,
       deviceGps: ap.gps
         ? {
-            latitude: ap.gps.latitude,
-            longitude: ap.gps.longitude,
+            latitude: ap.gps.latitude.toString(),
+            longitude: ap.gps.longitude.toString(),
           }
         : undefined,
       apGroupName: apGroup?.name,
@@ -303,12 +318,12 @@ export function generateVenueAddress(_zone: SZZone): string | undefined {
 export function getSecurityTypeDisplay(szType: string): string {
   const r1Type = mapSecurityType(szType)
   switch (r1Type) {
-    case 'open':
+    case 'STANDARD_OPEN':
       return 'Open'
-    case 'psk':
-      return 'WPA2-Personal'
-    case 'aaa':
-      return 'WPA2-Enterprise'
+    case 'STANDARD':
+      return 'WPA2-Personal (PSK)'
+    case 'STANDARD_8021X':
+      return 'WPA2-Enterprise (802.1X)'
     default:
       return szType
   }

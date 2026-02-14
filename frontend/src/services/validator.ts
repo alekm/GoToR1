@@ -355,17 +355,17 @@ function checkSecurityTypes(
   issues: ValidationIssue[],
   recommendations: string[]
 ) {
-  // Map SmartZone security types to R1
-  const securityMapping: Record<string, string> = {
-    Standard_Open: 'open',
-    Standard: 'psk',
-    Standard_8021X: 'aaa',
-    'Standard_MAC': 'aaa', // MAC auth requires AAA in R1
-    Hotspot: 'open',
-    'Hotspot_MAC': 'aaa',
-    'Hotspot_8021X': 'aaa',
-    Guest: 'open',
-    Web_Auth: 'open',
+  // Map SmartZone security types to R1 API types
+  const securityMapping: Record<string, 'STANDARD_OPEN' | 'STANDARD' | 'STANDARD_8021X'> = {
+    Standard_Open: 'STANDARD_OPEN',
+    Standard: 'STANDARD',
+    Standard_8021X: 'STANDARD_8021X',
+    'Standard_MAC': 'STANDARD_8021X',
+    Hotspot: 'STANDARD_OPEN',
+    'Hotspot_MAC': 'STANDARD_8021X',
+    'Hotspot_8021X': 'STANDARD_8021X',
+    Guest: 'STANDARD_OPEN',
+    Web_Auth: 'STANDARD_OPEN',
   }
 
   const unmappedWLANs: Array<{ name: string; type: string }> = []
@@ -382,12 +382,12 @@ function checkSecurityTypes(
     }
 
     // Check for PSK WLANs without passphrases
-    if (mappedType === 'psk' && !wlan.passphrase) {
+    if (mappedType === 'STANDARD' && !wlan.passphrase) {
       pskWithoutPassphrase.push(wlan.name)
     }
 
     // Track AAA WLANs for RADIUS configuration warning
-    if (mappedType === 'aaa') {
+    if (mappedType === 'STANDARD_8021X') {
       aaaWLANs.push(wlan.name)
     }
 

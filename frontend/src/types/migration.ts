@@ -217,13 +217,16 @@ export interface R1EndCustomer {
 
 export interface R1Network {
   name: string
-  wlan: {
-    ssid: string
-    enabled: boolean
-    wlanSecurity: string              // 'open', 'wpa2-personal', 'wpa2-enterprise'
-    encryption?: string               // 'aes'
-    vlanId?: number
-    passphrase?: string               // For PSK networks only
+  ssid: string
+  type: 'STANDARD_OPEN' | 'STANDARD' | 'STANDARD_8021X'  // R1 API security types
+  enabled?: boolean                   // Optional - defaults to true
+  passphrase?: string                 // Required for type='STANDARD' (PSK)
+  encryption?: {                      // Required for PSK and AAA
+    method: 'None' | 'WPA' | 'AES'
+    algorithm?: 'TKIP' | 'AES'
+  }
+  vlan?: {                            // Optional VLAN configuration
+    accessVlan: number
   }
   authServiceOrProfile?: {            // For AAA networks (optional - must exist in R1)
     id: string
