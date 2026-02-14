@@ -51,6 +51,17 @@ export const handler: Handler = async (event: HandlerEvent, context: HandlerCont
       requestHeaders['Content-Type'] = 'application/json'
     }
 
+    // Debug logging for OAuth2 requests
+    if (path.includes('/oauth2/token')) {
+      console.log('OAuth2 Request:', {
+        url: targetUrl,
+        method,
+        headers: requestHeaders,
+        bodyLength: requestBody?.length,
+        bodyPreview: requestBody?.substring(0, 100)
+      })
+    }
+
     // Make request to RUCKUS One API
     const response = await fetch(targetUrl, {
       method,
@@ -65,6 +76,16 @@ export const handler: Handler = async (event: HandlerEvent, context: HandlerCont
       responseData = JSON.parse(responseText)
     } catch {
       responseData = responseText
+    }
+
+    // Debug logging for OAuth2 responses
+    if (path.includes('/oauth2/token')) {
+      console.log('OAuth2 Response:', {
+        status: response.status,
+        statusText: response.statusText,
+        headers: Object.fromEntries(response.headers.entries()),
+        data: responseData
+      })
     }
 
     // Forward important headers from RUCKUS One API
