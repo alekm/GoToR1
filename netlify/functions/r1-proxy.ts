@@ -45,14 +45,17 @@ export const handler: Handler = async (event: HandlerEvent, context: HandlerCont
     // Build target URL
     const targetUrl = `${API_HOSTS[region as keyof typeof API_HOSTS]}${path}`
 
+    // Prepare headers (don't override Content-Type if already set)
+    const requestHeaders: Record<string, string> = { ...headers }
+    if (!requestHeaders['Content-Type'] && !requestHeaders['content-type']) {
+      requestHeaders['Content-Type'] = 'application/json'
+    }
+
     // Make request to RUCKUS One API
     const response = await fetch(targetUrl, {
       method,
-      headers: {
-        'Content-Type': 'application/json',
-        ...headers,
-      },
-      body: requestBody ? JSON.stringify(requestBody) : undefined,
+      headers: requestHeaders,
+      body: requestBody, // Already stringified by client
     })
 
     const responseText = await response.text()
