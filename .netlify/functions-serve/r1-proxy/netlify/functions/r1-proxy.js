@@ -50,13 +50,24 @@ var handler = async (event, context) => {
       };
     }
     const targetUrl = `${API_HOSTS[region]}${path}`;
+    const requestHeaders = { ...headers };
+    if (!requestHeaders["Content-Type"] && !requestHeaders["content-type"]) {
+      requestHeaders["Content-Type"] = "application/json";
+    }
+    if (path.includes("/oauth2/token")) {
+      console.log("OAuth2 Request:", {
+        url: targetUrl,
+        method,
+        headers: requestHeaders,
+        bodyLength: requestBody?.length,
+        bodyPreview: requestBody?.substring(0, 100)
+      });
+    }
     const response = await fetch(targetUrl, {
       method,
-      headers: {
-        "Content-Type": "application/json",
-        ...headers
-      },
-      body: requestBody ? JSON.stringify(requestBody) : void 0
+      headers: requestHeaders,
+      body: requestBody
+      // Already stringified by client
     });
     const responseText = await response.text();
     let responseData;
@@ -65,14 +76,29 @@ var handler = async (event, context) => {
     } catch {
       responseData = responseText;
     }
+    if (path.includes("/oauth2/token")) {
+      console.log("OAuth2 Response:", {
+        status: response.status,
+        statusText: response.statusText,
+        headers: Object.fromEntries(response.headers.entries()),
+        data: responseData
+      });
+    }
+    const responseHeaders = {
+      "Content-Type": "application/json",
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Headers": "Content-Type, login-token, Login-Token",
+      "Access-Control-Allow-Methods": "POST, OPTIONS",
+      "Access-Control-Expose-Headers": "login-token, Login-Token"
+      // Allow client to read these headers
+    };
+    const loginToken = response.headers.get("login-token") || response.headers.get("Login-Token");
+    if (loginToken) {
+      responseHeaders["login-token"] = loginToken;
+    }
     return {
       statusCode: response.status,
-      headers: {
-        "Content-Type": "application/json",
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Headers": "Content-Type",
-        "Access-Control-Allow-Methods": "POST, OPTIONS"
-      },
+      headers: responseHeaders,
       body: JSON.stringify(responseData)
     };
   } catch (error) {

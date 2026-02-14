@@ -49,49 +49,7 @@ function clearCookie(name: string) {
   document.cookie = `${name}=; Max-Age=0; Path=/`
 }
 
-/**
- * Make API request through proxy (production) or direct (dev)
- * Handles CORS by using Netlify Function proxy in production
- */
-async function proxyFetch(
-  region: RuckusRegion,
-  path: string,
-  options: RequestInit = {}
-): Promise<Response> {
-  const isDev = import.meta.env.DEV
-
-  if (isDev) {
-    // Dev: Use Vite proxy (see vite.config.ts)
-    const proxyPaths = {
-      na: '/r1',
-      eu: '/r1-eu',
-      asia: '/r1-asia',
-    }
-    const url = `${proxyPaths[region]}${path}`
-    return fetch(url, options)
-  } else {
-    // Production: Use Netlify Function proxy to avoid CORS
-    const proxyUrl = '/.netlify/functions/r1-proxy'
-
-    const proxyBody = {
-      region,
-      path,
-      method: options.method || 'GET',
-      headers: options.headers || {},
-      body: options.body,
-    }
-
-    const proxyResponse = await fetch(proxyUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(proxyBody),
-    })
-
-    return proxyResponse
-  }
-}
+import { apiFetch } from './apiClient'
 
 /**
  * OAuth2 Authentication
@@ -117,7 +75,7 @@ export async function getAccessToken(creds: RuckusOneCredentials): Promise<strin
         client_secret: creds.clientSecret,
       })
 
-      const response = await proxyFetch(region, `/oauth2/token/${encodeURIComponent(creds.tenantId)}`, {
+      const response = await apiFetch(region, `/oauth2/token/${encodeURIComponent(creds.tenantId)}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
@@ -149,7 +107,7 @@ export async function getAccessToken(creds: RuckusOneCredentials): Promise<strin
     async () => {
       const body = new URLSearchParams({ grant_type: 'client_credentials' })
 
-      const response = await proxyFetch(region, `/oauth2/token/${encodeURIComponent(creds.tenantId)}`, {
+      const response = await apiFetch(region, `/oauth2/token/${encodeURIComponent(creds.tenantId)}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
@@ -177,7 +135,7 @@ export async function getAccessToken(creds: RuckusOneCredentials): Promise<strin
         client_secret: creds.clientSecret,
       })
 
-      const response = await proxyFetch(region, '/oauth2/token', {
+      const response = await apiFetch(region, '/oauth2/token', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
@@ -268,7 +226,7 @@ async function apiRequest<T>(
     options.body = JSON.stringify(body)
   }
 
-  const response = await proxyFetch(region, path, options)
+  const response = await apiFetch(region, path, options)
 
   if (!response.ok) {
     let errorDetail = ''

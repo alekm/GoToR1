@@ -1,10 +1,6 @@
-/**
- * API Client
- * Base fetch wrapper for API calls with region support
- */
+import type { RuckusRegion } from './ruckusOneClient'
 
-export type RuckusRegion = 'na' | 'eu' | 'asia'
-
+// Determine if we're in development or production
 const isDevelopment = import.meta.env.DEV
 
 // Base URL for API calls
@@ -19,7 +15,7 @@ function getApiBaseUrl(region: RuckusRegion): string {
     return proxyPaths[region]
   } else {
     // Use Netlify functions in production
-    return '/.netlify/functions/r1-proxy'
+    return '/api'
   }
 }
 
