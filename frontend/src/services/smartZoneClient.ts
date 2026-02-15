@@ -231,18 +231,44 @@ export async function testConnection(
  * Get all zones from SmartZone
  */
 export async function getZones(config: SmartZoneConfig): Promise<SZZone[]> {
-  interface ZoneResponse {
-    list?: SZZone[]
+  interface ZoneListResponse {
+    list?: Array<{ id: string; name: string; description?: string; domainId: string }>
     totalCount?: number
   }
 
-  // Use v13_1 for resource endpoints (vSZ 7.1.1)
-  const response = await apiRequest<ZoneResponse>(
+  // Step 1: Get zone list (basic info only)
+  const listResponse = await apiRequest<ZoneListResponse>(
     config,
     `/wsg/api/public/v13_1/rkszones`
   )
 
-  return response.list || []
+  const zoneList = listResponse.list || []
+  if (zoneList.length === 0) {
+    return []
+  }
+
+  // Step 2: Fetch full details for each zone to get RF configuration
+  const fullZones: SZZone[] = []
+  for (const zoneSummary of zoneList) {
+    try {
+      const fullZone = await apiRequest<SZZone>(
+        config,
+        `/wsg/api/public/v13_1/rkszones/${encodeURIComponent(zoneSummary.id)}`
+      )
+      fullZones.push(fullZone)
+    } catch (err) {
+      console.warn(`Failed to fetch details for zone ${zoneSummary.name} (ID: ${zoneSummary.id}):`, err)
+      // Fallback: Use summary data
+      fullZones.push({
+        id: zoneSummary.id,
+        name: zoneSummary.name,
+        description: zoneSummary.description,
+        domainId: zoneSummary.domainId,
+      })
+    }
+  }
+
+  return fullZones
 }
 
 /**

@@ -94,6 +94,26 @@ export interface SZZone {
   name: string
   description?: string
   domainId: string
+  // GPS coordinates
+  latitude?: number
+  longitude?: number
+  // RF Configuration - 2.4GHz
+  channelWidth24?: string           // '20MHz', '40MHz'
+  channel24?: number | 'Auto'
+  txPower24?: number | 'Auto'
+  autoChannelSelection24?: boolean
+  channelChangeFrequency24?: number
+  // RF Configuration - 5GHz
+  channelWidth5?: string            // '20MHz', '40MHz', '80MHz', '160MHz'
+  channel5?: number | 'Auto'
+  txPower5?: number | 'Auto'
+  autoChannelSelection5?: boolean
+  channelChangeFrequency5?: number
+  // Additional RF settings
+  dfsEnabled?: boolean
+  bandSteering?: boolean
+  loadBalancing?: boolean
+  clientLimit?: number
 }
 
 export interface SZWLAN {
