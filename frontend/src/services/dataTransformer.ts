@@ -339,9 +339,10 @@ export function getSecurityTypeDisplay(szType: string): string {
 export function transformRFSettings(zone: SZZone): any {
   const radioSettings: any = {}
 
-  // SmartZone stores RF config in radioConfig.radio24g and radioConfig.radio5g
+  // SmartZone stores RF config in radioConfig.radio24g, radio5g, and radio6g (7.x+)
   const radio24g = (zone as any).radioConfig?.radio24g
   const radio5g = (zone as any).radioConfig?.radio5g
+  const radio6g = (zone as any).radioConfig?.radio6g  // Wi-Fi 6E support (SmartZone 7.x+)
 
   // 2.4GHz settings
   if (radio24g) {
@@ -432,6 +433,56 @@ export function transformRFSettings(zone: SZZone): any {
     // ACS change interval
     if (radio5g.autoChannelSelection?.channelFlyMtbc) {
       radioSettings.radioParams50G.changeInterval = Math.min(100, Math.max(1, radio5g.autoChannelSelection.channelFlyMtbc))
+    }
+  }
+
+  // 6GHz settings (Wi-Fi 6E - SmartZone 7.x+)
+  if (radio6g) {
+    radioSettings.radioParams6G = {}
+
+    // Channel bandwidth (6GHz typically supports 20/40/80/160MHz)
+    if (radio6g.channelWidth) {
+      const width = radio6g.channelWidth
+      if (width === 160) {
+        radioSettings.radioParams6G.channelBandwidth = '160MHz'
+      } else if (width === 80) {
+        radioSettings.radioParams6G.channelBandwidth = '80MHz'
+      } else if (width === 40) {
+        radioSettings.radioParams6G.channelBandwidth = '40MHz'
+      } else {
+        radioSettings.radioParams6G.channelBandwidth = '20MHz'
+      }
+    }
+
+    // Channel selection method
+    if (radio6g.autoChannelSelection?.channelSelectMode) {
+      const mode = radio6g.autoChannelSelection.channelSelectMode
+      if (mode === 'ChannelFly') {
+        radioSettings.radioParams6G.method = 'CHANNELFLY'
+      } else if (mode === 'BackgroundScanning') {
+        radioSettings.radioParams6G.method = 'BACKGROUND_SCANNING'
+      } else {
+        radioSettings.radioParams6G.method = 'MANUAL'
+      }
+    }
+
+    // TX Power
+    if (radio6g.txPower) {
+      const power = radio6g.txPower
+      if (power === 'Full') {
+        radioSettings.radioParams6G.txPower = 'MAX'
+      } else if (power === 'Min') {
+        radioSettings.radioParams6G.txPower = 'MIN'
+      } else if (power === 'Half' || power === '-3dBm') {
+        radioSettings.radioParams6G.txPower = '-3'
+      } else {
+        radioSettings.radioParams6G.txPower = 'MAX'
+      }
+    }
+
+    // ACS change interval
+    if (radio6g.autoChannelSelection?.channelFlyMtbc) {
+      radioSettings.radioParams6G.changeInterval = Math.min(100, Math.max(1, radio6g.autoChannelSelection.channelFlyMtbc))
     }
   }
 
