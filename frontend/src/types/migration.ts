@@ -66,7 +66,7 @@ export interface SmartZoneConfig {
     apiKey?: string
   }
   tlsVerify: boolean                  // Allow self-signed certs in dev
-  selectedZones: string[]             // Zone IDs to migrate
+  selectedZone?: string               // Single zone ID to migrate (changed from array to single)
 }
 
 // ============================================================================

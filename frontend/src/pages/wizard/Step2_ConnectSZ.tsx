@@ -32,7 +32,7 @@ export default function Step2_ConnectSZ({
         password: '',
       },
       tlsVerify: false, // Allow self-signed certs
-      selectedZones: [],
+      selectedZone: undefined,
     }
   )
 
@@ -47,32 +47,38 @@ export default function Step2_ConnectSZ({
   const [zones, setZones] = useState<SZZone[]>([])
   const [zonesLoaded, setZonesLoaded] = useState(false)
 
-  // Load zones if config is already tested
-  useEffect(() => {
-    if (initialConfig && initialConfig.selectedZones.length > 0) {
-      handleLoadZones()
-    }
-  }, [])
+  // No longer need to auto-load zones on mount
 
   const handleTest = async () => {
     setTesting(true)
     setTestResult(null)
     setZonesLoaded(false)
+    setZones([])
 
     try {
+      // Step 1: Test connection
       const result = await testConnection(config)
 
       if (result.success) {
+        // Update config with detected version
+        let updatedConfig = config
+        if (result.version) {
+          updatedConfig = { ...config, apiVersion: result.version }
+          setConfig(updatedConfig)
+        }
+
+        // Step 2: Automatically load zones after successful connection
+        const fetchedZones = await getZones(updatedConfig)
+        setZones(fetchedZones)
+        setZonesLoaded(true)
+
         setTestResult({
           success: true,
-          message: `Connection successful! SmartZone API ${result.version || config.apiVersion} detected.`,
+          message: `Connection successful! SmartZone API ${result.version || config.apiVersion} detected. Found ${fetchedZones.length} zone(s).`,
           version: result.version,
         })
 
-        // Update config with detected version
-        if (result.version) {
-          setConfig({ ...config, apiVersion: result.version })
-        }
+        // Don't auto-select zones - let user choose
       } else {
         setTestResult({
           success: false,
@@ -89,45 +95,17 @@ export default function Step2_ConnectSZ({
     }
   }
 
-  const handleLoadZones = async () => {
-    setLoadingZones(true)
 
-    try {
-      const fetchedZones = await getZones(config)
-      setZones(fetchedZones)
-      setZonesLoaded(true)
-
-      // If this is initial load and we have selected zones, keep them selected
-      if (!config.selectedZones.length && fetchedZones.length > 0) {
-        // Auto-select all zones by default
-        setConfig({
-          ...config,
-          selectedZones: fetchedZones.map((z) => z.id),
-        })
-      }
-    } catch (err) {
-      setTestResult({
-        success: false,
-        message: err instanceof Error ? err.message : 'Failed to load zones',
-      })
-    } finally {
-      setLoadingZones(false)
-    }
-  }
-
-  const handleToggleZone = (zoneId: string) => {
-    const isSelected = config.selectedZones.includes(zoneId)
+  const handleSelectZone = (zoneId: string) => {
     setConfig({
       ...config,
-      selectedZones: isSelected
-        ? config.selectedZones.filter((id) => id !== zoneId)
-        : [...config.selectedZones, zoneId],
+      selectedZone: zoneId,
     })
   }
 
   const handleContinue = () => {
-    if (config.selectedZones.length === 0) {
-      alert('Please select at least one zone to migrate')
+    if (!config.selectedZone) {
+      alert('Please select a zone to migrate')
       return
     }
     onComplete(config)
@@ -298,10 +276,11 @@ export default function Step2_ConnectSZ({
                       className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-gray-50 cursor-pointer"
                     >
                       <input
-                        type="checkbox"
-                        checked={config.selectedZones.includes(zone.id)}
-                        onChange={() => handleToggleZone(zone.id)}
-                        className="h-4 w-4 text-orange-600 focus:ring-orange-500 border-gray-300 rounded"
+                        type="radio"
+                        name="zone-selection"
+                        checked={config.selectedZone === zone.id}
+                        onChange={() => handleSelectZone(zone.id)}
+                        className="h-4 w-4 text-orange-600 focus:ring-orange-500 border-gray-300"
                       />
                       <div className="flex-1">
                         <div className="font-medium text-gray-900">{zone.name}</div>
@@ -314,8 +293,9 @@ export default function Step2_ConnectSZ({
                 )}
 
                 <div className="text-sm text-gray-600 mt-4">
-                  {config.selectedZones.length} zone{config.selectedZones.length !== 1 ? 's' : ''}{' '}
-                  selected
+                  {config.selectedZone
+                    ? `Selected: ${zones.find((z) => z.id === config.selectedZone)?.name || 'Unknown'}`
+                    : 'No zone selected'}
                 </div>
               </div>
             )}
@@ -331,7 +311,7 @@ export default function Step2_ConnectSZ({
           <button
             type="button"
             onClick={handleContinue}
-            disabled={!zonesLoaded || config.selectedZones.length === 0}
+            disabled={!zonesLoaded || !config.selectedZone}
             className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Continue to Data Extraction →

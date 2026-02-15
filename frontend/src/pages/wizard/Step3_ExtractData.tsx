@@ -47,7 +47,7 @@ export default function Step3_ExtractData({
     try {
       const data = await extractData(
         config,
-        config.selectedZones,
+        config.selectedZone ? [config.selectedZone] : [],
         (stage: string, current: number, total: number) => {
           setProgress((prev) => ({
             ...prev,
@@ -113,8 +113,7 @@ export default function Step3_ExtractData({
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">Extract Data from SmartZone</h1>
         <p className="text-gray-600">
-          Extracting configuration data from {config.selectedZones.length} zone
-          {config.selectedZones.length !== 1 ? 's' : ''}
+          Extracting configuration data from selected zone
         </p>
       </div>
 
