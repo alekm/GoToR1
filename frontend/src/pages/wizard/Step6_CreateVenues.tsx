@@ -7,9 +7,10 @@
 import { useState } from 'react'
 import { CheckCircle, Building2, MapPin, Loader, AlertCircle, Settings as SettingsIcon } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import { createVenue, type R1Venue, type RuckusOneCredentials } from '../../services/ruckusOneClient'
+import { createVenue, updateVenueRadioSettings, type R1Venue, type RuckusOneCredentials } from '../../services/ruckusOneClient'
 import type { SmartZoneData } from '../../types/migration'
 import { useAuth } from '../../contexts/AuthContext'
+import { transformRFSettings } from '../../services/dataTransformer'
 
 interface Step6_CreateVenuesProps {
   extractedData: SmartZoneData
@@ -118,6 +119,21 @@ export default function Step6_CreateVenues({
 
           const result = await createVenue(r1Credentials, venueData)
           newCreatedVenues[zone.id] = result.id
+
+          // Apply RF settings to the newly created venue
+          const rfSettings = transformRFSettings(zone)
+          if (rfSettings) {
+            try {
+              console.log(`Applying RF settings to venue ${zone.name}:`, rfSettings)
+              await updateVenueRadioSettings(r1Credentials, result.id, rfSettings)
+              console.log(`RF settings applied to venue ${zone.name}`)
+            } catch (rfErr) {
+              const rfErrorMsg = rfErr instanceof Error ? rfErr.message : 'Unknown error'
+              console.warn(`Failed to apply RF settings for venue "${zone.name}": ${rfErrorMsg}`)
+              // Don't fail the whole migration if RF settings fail - just log a warning
+              setErrors((prev) => [...prev, `Warning: RF settings not applied for venue "${zone.name}": ${rfErrorMsg}`])
+            }
+          }
 
           setCreatedVenues({ ...newCreatedVenues })
         } catch (err) {
