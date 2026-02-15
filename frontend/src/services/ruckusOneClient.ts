@@ -407,6 +407,8 @@ export async function createWifiNetwork(
   // Transform to appropriate schema based on security type
   let payload: unknown
 
+  console.log(`[R1 API] Creating WLAN "${network.name}" with securityType="${network.securityType}"`)
+
   if (network.securityType === 'open') {
     payload = {
       type: 'open',
@@ -419,6 +421,7 @@ export async function createWifiNetwork(
         wlanSecurity: 'Open',
       },
     }
+    console.log('[R1 API] Payload (Open):', JSON.stringify(payload, null, 2))
   } else if (network.securityType === 'psk') {
     payload = {
       type: 'psk',
@@ -431,6 +434,10 @@ export async function createWifiNetwork(
         passphrase: network.passphrase,
         wlanSecurity: network.encryption === 'tkip' ? 'WPA_Mixed' : 'WPA2',
       },
+    }
+    console.log('[R1 API] Payload (PSK):', JSON.stringify(payload, null, 2))
+    if (!network.passphrase) {
+      console.error('[R1 API] ⚠️  PSK network but passphrase is missing!')
     }
   } else if (network.securityType === 'aaa') {
     payload = {
@@ -446,6 +453,7 @@ export async function createWifiNetwork(
         accountingServiceId: network.accountingServiceId,
       },
     }
+    console.log('[R1 API] Payload (AAA):', JSON.stringify(payload, null, 2))
   }
 
   const response = await apiRequest<any>(

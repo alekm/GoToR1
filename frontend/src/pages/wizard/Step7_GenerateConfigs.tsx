@@ -48,12 +48,10 @@ export default function Step7_GenerateConfigs({
 
   useEffect(() => {
     // Generate configurations on mount
-    const networks = transformWLANsToNetworks(extractedData.wlans, extractedData.zones)
     const apGroups = transformAPGroups(extractedData.apGroups, extractedData.zones)
 
-    // Map to R1 format with zone info
-    const mappedNetworks = networks.map((net) => {
-      const szWlan = extractedData.wlans.find((w) => w.id === net.sourceWlanId)!
+    // Map WLANs directly from SmartZone data (skip transformWLANsToNetworks to avoid confusion)
+    const mappedNetworks = extractedData.wlans.map((szWlan) => {
       const zone = extractedData.zones.find((z) => z.id === szWlan.zoneId)
 
       // Log full WLAN structure for debugging
@@ -100,14 +98,14 @@ export default function Step7_GenerateConfigs({
       console.log('===\n')
 
       return {
-        szWlanId: net.sourceWlanId,
-        name: net.name,
-        ssid: net.ssid,
+        szWlanId: szWlan.id,
+        name: szWlan.name,
+        ssid: szWlan.ssid,
         securityType,
         encryption: szWlan.encryption?.algorithm?.toLowerCase() as 'aes' | 'tkip' | undefined,
         passphrase: passphrase, // Include passphrase from SmartZone (from either location)
-        vlanId: net.vlan?.accessVlan,
-        enabled: net.enabled ?? true,
+        vlanId: szWlan.vlan?.accessVlan,
+        enabled: true,
         _zoneName: zone?.name,
       }
     })
@@ -167,10 +165,18 @@ export default function Step7_GenerateConfigs({
       setCurrentPhase('wlans')
       for (const network of generatedNetworks) {
         try {
+          console.log(`Creating WLAN "${network.name}":`, {
+            securityType: network.securityType,
+            hasPassphrase: !!network.passphrase,
+            encryption: network.encryption,
+            vlanId: network.vlanId,
+          })
           await createWifiNetwork(r1Credentials, network)
           setCreatedWLANs((prev) => [...prev, network.szWlanId])
+          console.log(`✓ WLAN "${network.name}" created successfully`)
         } catch (err) {
           const errorMsg = err instanceof Error ? err.message : 'Unknown error'
+          console.error(`✗ WLAN "${network.name}" creation failed:`, errorMsg)
           setErrors((prev) => [...prev, `Failed to create WLAN "${network.name}": ${errorMsg}`])
         }
       }
