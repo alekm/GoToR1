@@ -85,6 +85,12 @@ export default function Step8_UploadAPs({
     const r1Credentials: RuckusOneCredentials = credentials
 
     try {
+      // Detect duplicate AP names
+      const nameCount = new Map<string, number>()
+      extractedData.accessPoints.forEach((ap) => {
+        nameCount.set(ap.name, (nameCount.get(ap.name) || 0) + 1)
+      })
+
       // Transform SmartZone APs to R1 format
       const r1APs: R1AccessPoint[] = extractedData.accessPoints.map((ap) => {
         // Find the zone name for tagging and venue ID for assignment
@@ -96,11 +102,33 @@ export default function Step8_UploadAPs({
           console.warn(`No venue ID found for AP "${ap.name}" in zone "${zoneName}"`)
         }
 
-        // Use MAC address as name to guarantee uniqueness in R1
-        // Store original SmartZone name in description
+        // Determine AP name (R1 limit: 2-32 chars)
+        let apName = ap.name
+        const isDuplicate = (nameCount.get(ap.name) || 0) > 1
+
+        if (isDuplicate || apName.length > 32) {
+          // Use MAC address for duplicates or long names
+          const macSuffix = ap.mac.slice(-6).toUpperCase() // Last 6 chars of MAC
+
+          if (apName.length > 25) {
+            // Truncate and append MAC: "LongName..." + "-" + "ABCDEF"
+            apName = apName.slice(0, 25) + '-' + macSuffix
+          } else {
+            // Append MAC to existing name: "APName-ABCDEF"
+            apName = `${apName}-${macSuffix}`
+          }
+
+          // Ensure within 32 char limit
+          if (apName.length > 32) {
+            apName = apName.slice(0, 32)
+          }
+
+          console.log(`AP name conflict: "${ap.name}" → "${apName}" (${isDuplicate ? 'duplicate' : 'too long'})`)
+        }
+
         return {
           serialNumber: sanitizeSerial(ap.serial),
-          name: ap.mac, // Use MAC for guaranteed uniqueness
+          name: apName,
           description: `${ap.name} (migrated from SmartZone zone: ${zoneName})`,
           model: ap.model,
           tags: ['migrated-from-smartzone', `sz-zone:${zoneName}`, `sz-name:${ap.name}`],
