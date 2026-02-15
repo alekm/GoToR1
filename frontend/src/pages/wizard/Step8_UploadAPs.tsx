@@ -96,12 +96,14 @@ export default function Step8_UploadAPs({
           console.warn(`No venue ID found for AP "${ap.name}" in zone "${zoneName}"`)
         }
 
+        // Use MAC address as name to guarantee uniqueness in R1
+        // Store original SmartZone name in description
         return {
           serialNumber: sanitizeSerial(ap.serial),
-          name: ap.name,
-          description: ap.description || `Migrated from SmartZone zone: ${zoneName}`,
+          name: ap.mac, // Use MAC for guaranteed uniqueness
+          description: `${ap.name} (migrated from SmartZone zone: ${zoneName})`,
           model: ap.model,
-          tags: ['migrated-from-smartzone', `sz-zone:${zoneName}`],
+          tags: ['migrated-from-smartzone', `sz-zone:${zoneName}`, `sz-name:${ap.name}`],
           deviceGps: ap.gps
             ? {
                 latitude: ap.gps.latitude,
