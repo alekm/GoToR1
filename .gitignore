@@ -31,3 +31,6 @@ dist-ssr
 # Build info
 .tmp
 *.tsbuildinfo
+
+# Local Netlify folder
+.netlify

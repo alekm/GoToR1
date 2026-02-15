@@ -46,11 +46,16 @@ npx tsc --noEmit  # Type check without building
 
 The application implements a **10-step wizard workflow** across 5 phases:
 
-1. **Data Gathering** (Steps 1-3): Project setup → SmartZone connection → Extract zones/WLANs/APs/switches
-2. **Validation** (Steps 4-5): Review data → Validate for conflicts/duplicates
-3. **R1 Configuration** (Steps 6-7): Create venues/ECs → Generate WLAN/AP Group configs
-4. **Hardware Migration** (Steps 8-9): Upload APs → Upload switches
-5. **Post-Migration** (Step 10): Verification & reporting
+1. **Data Gathering** (Steps 1-3): ✅ Project setup → SmartZone connection → Extract zones/WLANs/APs/switches
+2. **Validation** (Steps 4-5): ✅ Review data → Validate for conflicts/duplicates
+3. **R1 Configuration** (Steps 6-7): 🔄 Create venues/ECs → Generate WLAN/AP Group configs
+4. **Hardware Migration** (Steps 8-9): ⏭️ Upload APs → Upload switches
+5. **Post-Migration** (Step 10): ⏭️ Verification & reporting
+
+**Current Implementation Status:**
+- ✅ Steps 1-5: Fully implemented and tested
+- ✅ Step 6: Venue creation wired up, needs R1 credentials configured
+- ⏭️ Steps 7-10: Not yet implemented (show "coming soon" alert)
 
 ### State Management Architecture
 
@@ -90,27 +95,55 @@ GET /wsg/api/public/v13_1/aps?zoneId={zoneId}&index=0&listSize=100
 
 #### RUCKUS One API Client (`ruckusOneClient.ts`)
 
-- Placeholder - will be copied from existing r1helper/r1gather/r1mapper projects
-- OAuth2 client credentials flow
-- Multi-region support (NA, EU, Asia)
-- Proxied through Vite dev server (`/r1`, `/r1-eu`, `/r1-asia`)
+- **Authentication**: OAuth2 client credentials flow with tenant-scoped endpoints
+- **Multi-region support**: NA, EU, Asia (defaults to NA)
+- **Token Caching**: Stores tokens in cookies with automatic expiration handling
+- **Proxy Pattern**:
+  - Development: `/r1`, `/r1-eu`, `/r1-asia` (Vite proxy to api.ruckus.cloud)
+  - Production: `/api?region=na` (Netlify function proxy)
 
-### Netlify Function Proxy (`sz-proxy.ts`)
-
-**Purpose:** Handle SmartZone API requests that require:
-- CORS headers
-- Self-signed SSL certificates (common in SmartZone deployments)
-- Session cookie management
-
-**Session Injection Pattern:**
+**Critical API Endpoints Implemented:**
 ```typescript
-// Proxy extracts JSESSIONID from Set-Cookie header
-// and injects it into response body as _sessionId
-// Client stores this and sends via X-Session-ID header
-// Proxy converts X-Session-ID back to Cookie header for SmartZone
+// Venues
+POST /venues - Create venue
+GET /venues - List all venues
+GET /venues/{venueId} - Get venue details
+
+// WiFi Networks (WLANs)
+POST /wifiNetworks - Create WLAN
+GET /wifiNetworks - List all WLANs
+
+// AP Groups
+POST /venues/{venueId}/apGroups - Create AP group
+GET /venues/{venueId}/apGroups - List AP groups
+
+// Access Points
+POST /venues/aps - Batch upload APs (50 per batch)
+PUT /venues/{venueId}/apGroups/{apGroupId}/aps - Assign APs to group
+
+// Switches
+POST /switches - Batch upload switches (25 per batch)
 ```
 
-This workaround is necessary because browsers block JavaScript from reading/setting Cookie headers directly.
+### Netlify Function Proxies
+
+**SmartZone Proxy (`sz-proxy.js`)**:
+- Handles CORS headers for SmartZone API requests
+- Supports self-signed SSL certificates (rejectUnauthorized: false)
+- Manages session cookie forwarding (JSESSIONID)
+- Query params: `?host={ip}&port={port}&path={apiPath}`
+
+**RUCKUS One Proxy (`api.js`)**:
+- Proxies requests to api.ruckus.cloud with regional support
+- Production endpoint: `/api?region=na` (forwarded via netlify.toml redirect)
+- Development endpoint: `/r1`, `/r1-eu`, `/r1-asia` (Vite proxy)
+- Forwards Authorization, Content-Type, and tenant headers
+
+**Session Management Pattern:**
+```javascript
+// SmartZone: Session cookies converted to X-Session-ID header for browser compatibility
+// RUCKUS One: Bearer tokens cached in cookies with expiration
+```
 
 ### File Organization Patterns
 
@@ -282,11 +315,138 @@ Deploys to Netlify:
 - Build command: `cd frontend && npm run build`
 - Publish directory: `frontend/dist`
 - Functions directory: `netlify/functions`
+- Functions: `api.js` (R1 proxy), `sz-proxy.js` (SmartZone proxy)
 
-All redirects route to `/index.html` for client-side routing.
+**Important**: All Netlify Functions must be JavaScript (`.js`), not TypeScript. The `node_bundler: esbuild` setting in `netlify.toml` handles TypeScript files in the frontend, but functions need manual conversion or should be written in JS.
+
+**Redirects** (in `netlify.toml`):
+```toml
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/api/:splat"
+  status = 200
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200  # SPA client-side routing
+```
+
+## Troubleshooting
+
+### Dev Server Won't Start
+
+**Error**: `Could not acquire required 'port': '8888'`
+- **Cause**: Port already in use by another process
+- **Fix**: `lsof -ti:8888 | xargs kill -9` then restart
+
+**Error**: `frontend/frontend/package.json not found`
+- **Cause**: Running `netlify dev` from wrong directory
+- **Fix**: Must run from repository root, not `frontend/` subdirectory
+
+### SmartZone Connection Issues
+
+**502 Bad Gateway**:
+- SmartZone may not be accessible from Netlify's servers (firewall/NAT)
+- Test locally first: `npx netlify dev` then localhost:8888
+- Production migrations may require VPN or IP whitelisting
+
+**404 on sz-proxy**:
+- Function not deployed or not loading
+- Check Netlify build logs for function bundling errors
+- Verify `netlify/functions/sz-proxy.js` exists (not .ts)
+
+### RUCKUS One API Errors
+
+**401 JWT Invalid**:
+- Check credentials (tenantId, clientId, clientSecret)
+- Verify region is correct (na/eu/asia)
+- Clear cached tokens: Delete cookies starting with `gotor1_r1_token_`
+
+**CORS Errors on Production**:
+- Verify `/api/*` redirect exists in netlify.toml
+- Check that `api.js` function deployed successfully
+- Hard refresh browser (Ctrl+Shift+R) to clear cached JS
+
+### Validation Shows "(no type specified)"
+
+- SmartZone WLAN list endpoint doesn't return security type
+- This is a known limitation (see "Known Issues" section)
+- Individual WLAN detail fetch needs to be implemented
+
+## Known Issues & Important Patterns
+
+### WLAN Data Extraction
+
+**Critical Issue**: The SmartZone `/rkszones/{zoneId}/wlans` list endpoint returns only basic information (id, name, ssid) but **NOT** security configuration (type, encryption, vlan, passphrase).
+
+**Current Behavior**:
+- WLANs show "(no type specified)" in validation
+- Cannot properly map to RUCKUS One security types
+- Incomplete data for migration
+
+**Planned Solution**: Two-step WLAN extraction:
+1. Fetch WLAN list to get IDs
+2. Fetch individual WLAN details via `/rkszones/{zoneId}/wlans/{wlanId}` for full configuration
+
+### SmartZone to RUCKUS One Security Type Mapping
+
+```typescript
+const SECURITY_MAPPING = {
+  'Standard_Open': 'open',        // → R1: STANDARD_OPEN, encryption: None
+  'Standard': 'psk',              // → R1: STANDARD, requires passphrase
+  'Standard_8021X': 'aaa',        // → R1: STANDARD_8021X, requires RADIUS config
+  'Standard_MAC': 'aaa',          // → R1: STANDARD_8021X (MAC auth via RADIUS)
+  'Hotspot': 'open',              // Limited R1 support, manual review needed
+  'Guest': 'open',                // Simplified to open network
+}
+```
+
+### Response Body Consumption
+
+**Critical Pattern**: Never read a Response body twice. Always read as text first, then parse:
+
+```typescript
+// CORRECT
+const text = await response.text()
+const data = JSON.parse(text)
+
+// WRONG - causes "Body already consumed" error
+const data = await response.json()
+const text = await response.text() // ❌ Fails!
+```
+
+### AP Serial Number Validation
+
+RUCKUS One requires: `^[1-9][0-9]{11}$` (12 digits, first digit 1-9)
+- Sanitize by removing non-digits, padding to 12 chars, replacing leading 0 with 1
+
+### WLAN Creation Payload Differences
+
+R1 API requires different payload structures for each security type:
+- **Open**: `type: 'STANDARD_OPEN'`, `encryption.method: 'None'`
+- **PSK**: `type: 'STANDARD'`, `passphrase` (required), `encryption: {method, algorithm}`
+- **AAA**: `type: 'STANDARD_8021X'`, always AES encryption, optional RADIUS service IDs
+
+### Working Directory for Dev Server
+
+**Critical**: `netlify dev` must run from repository root (not `frontend/` subdirectory)
+
+```bash
+# CORRECT
+cd /path/to/gotor1.com
+npx netlify dev
+
+# WRONG - causes "frontend/frontend/package.json not found"
+cd /path/to/gotor1.com/frontend
+npx netlify dev
+```
 
 ## Known Limitations
 
-- **Switches endpoint**: `/v13_1/switch` returns 404 on deployments without SmartZone switch management (expected behavior, handled gracefully)
-- **API version detection**: Currently tries v13_1 → v10_0 → v9_1 → v9_0 → v8_0 sequentially (not all versions may exist)
+- **Switches endpoint**: `/v13_1/switch` returns 404 on deployments without SmartZone switch management (expected, handled gracefully)
+- **API version detection**: Tries v13_1 → v10_0 → v9_1 → v9_0 → v8_0 sequentially (not all versions may exist)
 - **Session timeout**: SmartZone sessions expire after 1 hour (client stores for 3600 seconds)
+- **WLAN list endpoint**: Does not return security type/encryption - requires individual detail fetch
+- **Hotspot 2.0**: Limited RUCKUS One support, requires manual configuration review
+- **AAA/802.1X**: Requires pre-configured RADIUS servers in RUCKUS One (cannot be migrated automatically)

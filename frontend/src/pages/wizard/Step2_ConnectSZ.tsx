@@ -4,7 +4,7 @@
  * User enters SmartZone connection details and selects zones to migrate
  */
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Loader, CheckCircle, XCircle, Server } from 'lucide-react'
 import { testConnection, getZones } from '../../services/smartZoneClient'
 import type { SmartZoneConfig, SZZone } from '../../types/migration'
@@ -43,7 +43,6 @@ export default function Step2_ConnectSZ({
     version?: string
   } | null>(null)
 
-  const [loadingZones, setLoadingZones] = useState(false)
   const [zones, setZones] = useState<SZZone[]>([])
   const [zonesLoaded, setZonesLoaded] = useState(false)
 
@@ -250,21 +249,9 @@ export default function Step2_ConnectSZ({
             <h2 className="text-xl font-semibold text-gray-900 mb-4">Select Zones to Migrate</h2>
 
             {!zonesLoaded ? (
-              <button
-                type="button"
-                onClick={handleLoadZones}
-                disabled={loadingZones}
-                className="btn-secondary flex items-center space-x-2"
-              >
-                {loadingZones ? (
-                  <>
-                    <Loader size={16} className="animate-spin" />
-                    <span>Loading Zones...</span>
-                  </>
-                ) : (
-                  <span>Load Available Zones</span>
-                )}
-              </button>
+              <p className="text-sm text-gray-600">
+                Zones loaded automatically after connection test
+              </p>
             ) : (
               <div className="space-y-2">
                 {zones.length === 0 ? (

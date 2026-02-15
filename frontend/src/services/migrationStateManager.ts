@@ -203,7 +203,6 @@ class MigrationStateManager {
         authType: 'password',
         credentials: {},
         tlsVerify: false,
-        selectedZones: [],
       },
       checkpoints: [],
       errors: [],
