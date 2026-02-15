@@ -121,7 +121,9 @@ export default function Step6_CreateVenues({
           newCreatedVenues[zone.id] = result.id
 
           // Apply RF settings to the newly created venue
+          console.log('Zone data for RF transform:', zone)
           const rfSettings = transformRFSettings(zone)
+          console.log('Transformed RF settings:', rfSettings)
           if (rfSettings) {
             try {
               console.log(`Applying RF settings to venue ${zone.name}:`, rfSettings)
