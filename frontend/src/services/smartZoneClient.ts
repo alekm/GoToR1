@@ -249,7 +249,7 @@ export async function getZones(config: SmartZoneConfig): Promise<SZZone[]> {
 
   // Step 2: Fetch full details for each zone to get RF configuration
   const fullZones: SZZone[] = []
-  console.log(`=== FETCHING DETAILS FOR ${zoneList.length} ZONES ===`)
+  console.log(`=== FETCHING DETAILS FOR ${zoneList.length} ZONES (all zones from SmartZone) ===`)
 
   for (const zoneSummary of zoneList) {
     console.log(`Fetching zone: ${zoneSummary.name} (ID: ${zoneSummary.id})`)

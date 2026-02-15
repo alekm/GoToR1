@@ -339,48 +339,64 @@ export function getSecurityTypeDisplay(szType: string): string {
 export function transformRFSettings(zone: SZZone): any {
   const radioSettings: any = {}
 
+  // SmartZone stores RF config in radioConfig.radio24g and radioConfig.radio5g
+  const radio24g = (zone as any).radioConfig?.radio24g
+  const radio5g = (zone as any).radioConfig?.radio5g
+
   // 2.4GHz settings
-  if (zone.channelWidth24 || zone.txPower24 || zone.autoChannelSelection24 !== undefined) {
+  if (radio24g) {
     radioSettings.radioParams24G = {}
 
-    // Channel bandwidth
-    if (zone.channelWidth24) {
-      radioSettings.radioParams24G.channelBandwidth = zone.channelWidth24 === '40MHz' ? '40MHz' : '20MHz'
+    // Channel bandwidth (SmartZone: channelWidth in MHz number, R1: string with 'MHz')
+    if (radio24g.channelWidth) {
+      radioSettings.radioParams24G.channelBandwidth = radio24g.channelWidth === 40 ? '40MHz' : '20MHz'
     }
 
-    // Channel selection method
-    if (zone.autoChannelSelection24 !== undefined) {
-      radioSettings.radioParams24G.method = zone.autoChannelSelection24 ? 'BACKGROUND_SCANNING' : 'MANUAL'
-    }
-
-    // TX Power
-    if (zone.txPower24 !== undefined) {
-      if (zone.txPower24 === 'Auto') {
-        radioSettings.radioParams24G.txPower = 'Auto'
-      } else if (typeof zone.txPower24 === 'number') {
-        // Convert power level (assume 0-max scale to MAX/-1/-2/etc)
-        radioSettings.radioParams24G.txPower = 'MAX' // Simplified - could map to specific dBm levels
+    // Channel selection method (SmartZone: channelSelectMode, R1: method)
+    if (radio24g.autoChannelSelection?.channelSelectMode) {
+      const mode = radio24g.autoChannelSelection.channelSelectMode
+      if (mode === 'ChannelFly') {
+        radioSettings.radioParams24G.method = 'CHANNELFLY'
+      } else if (mode === 'BackgroundScanning') {
+        radioSettings.radioParams24G.method = 'BACKGROUND_SCANNING'
+      } else {
+        radioSettings.radioParams24G.method = 'MANUAL'
       }
     }
 
-    // ACS change interval
-    if (zone.channelChangeFrequency24) {
-      radioSettings.radioParams24G.changeInterval = Math.min(100, Math.max(1, zone.channelChangeFrequency24))
+    // TX Power (SmartZone: "Full", "Half", "Min", etc. R1: "MAX", "Auto", "-1", etc.)
+    if (radio24g.txPower) {
+      const power = radio24g.txPower
+      if (power === 'Full') {
+        radioSettings.radioParams24G.txPower = 'MAX'
+      } else if (power === 'Min') {
+        radioSettings.radioParams24G.txPower = 'MIN'
+      } else if (power === 'Half' || power === '-3dBm') {
+        radioSettings.radioParams24G.txPower = '-3'
+      } else {
+        radioSettings.radioParams24G.txPower = 'MAX' // Default
+      }
+    }
+
+    // ACS change interval (ChannelFly MTBC - Mean Time Between Change in minutes)
+    if (radio24g.autoChannelSelection?.channelFlyMtbc) {
+      // Convert minutes to R1's changeInterval (need to verify R1's units)
+      radioSettings.radioParams24G.changeInterval = Math.min(100, Math.max(1, radio24g.autoChannelSelection.channelFlyMtbc))
     }
   }
 
   // 5GHz settings
-  if (zone.channelWidth5 || zone.txPower5 || zone.autoChannelSelection5 !== undefined) {
+  if (radio5g) {
     radioSettings.radioParams50G = {}
 
     // Channel bandwidth
-    if (zone.channelWidth5) {
-      const width = zone.channelWidth5
-      if (width === '160MHz') {
+    if (radio5g.channelWidth) {
+      const width = radio5g.channelWidth
+      if (width === 160) {
         radioSettings.radioParams50G.channelBandwidth = '160MHz'
-      } else if (width === '80MHz') {
+      } else if (width === 80) {
         radioSettings.radioParams50G.channelBandwidth = '80MHz'
-      } else if (width === '40MHz') {
+      } else if (width === 40) {
         radioSettings.radioParams50G.channelBandwidth = '40MHz'
       } else {
         radioSettings.radioParams50G.channelBandwidth = '20MHz'
@@ -388,22 +404,34 @@ export function transformRFSettings(zone: SZZone): any {
     }
 
     // Channel selection method
-    if (zone.autoChannelSelection5 !== undefined) {
-      radioSettings.radioParams50G.method = zone.autoChannelSelection5 ? 'BACKGROUND_SCANNING' : 'MANUAL'
+    if (radio5g.autoChannelSelection?.channelSelectMode) {
+      const mode = radio5g.autoChannelSelection.channelSelectMode
+      if (mode === 'ChannelFly') {
+        radioSettings.radioParams50G.method = 'CHANNELFLY'
+      } else if (mode === 'BackgroundScanning') {
+        radioSettings.radioParams50G.method = 'BACKGROUND_SCANNING'
+      } else {
+        radioSettings.radioParams50G.method = 'MANUAL'
+      }
     }
 
     // TX Power
-    if (zone.txPower5 !== undefined) {
-      if (zone.txPower5 === 'Auto') {
-        radioSettings.radioParams50G.txPower = 'Auto'
-      } else if (typeof zone.txPower5 === 'number') {
-        radioSettings.radioParams50G.txPower = 'MAX' // Simplified
+    if (radio5g.txPower) {
+      const power = radio5g.txPower
+      if (power === 'Full') {
+        radioSettings.radioParams50G.txPower = 'MAX'
+      } else if (power === 'Min') {
+        radioSettings.radioParams50G.txPower = 'MIN'
+      } else if (power === 'Half' || power === '-3dBm') {
+        radioSettings.radioParams50G.txPower = '-3'
+      } else {
+        radioSettings.radioParams50G.txPower = 'MAX'
       }
     }
 
     // ACS change interval
-    if (zone.channelChangeFrequency5) {
-      radioSettings.radioParams50G.changeInterval = Math.min(100, Math.max(1, zone.channelChangeFrequency5))
+    if (radio5g.autoChannelSelection?.channelFlyMtbc) {
+      radioSettings.radioParams50G.changeInterval = Math.min(100, Math.max(1, radio5g.autoChannelSelection.channelFlyMtbc))
     }
   }
 
