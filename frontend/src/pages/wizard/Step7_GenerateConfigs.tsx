@@ -56,17 +56,29 @@ export default function Step7_GenerateConfigs({
       const szWlan = extractedData.wlans.find((w) => w.id === net.sourceWlanId)!
       const zone = extractedData.zones.find((z) => z.id === szWlan.zoneId)
 
-      // Determine security type
+      // Determine security type from SmartZone WLAN type
       let securityType: R1WifiSecurityType = 'open'
-      if (szWlan.type.includes('8021X')) securityType = 'aaa'
-      else if (szWlan.type.includes('Standard') && szWlan.type !== 'Standard_Open') securityType = 'psk'
+      if (szWlan.type.includes('8021X') || szWlan.type.includes('MAC')) {
+        securityType = 'aaa'
+      } else if (szWlan.type === 'Standard' || szWlan.type.includes('WPA')) {
+        securityType = 'psk'
+      } else if (szWlan.type === 'Standard_Open') {
+        securityType = 'open'
+      }
+
+      console.log(`WLAN "${szWlan.name}": SZ type="${szWlan.type}" → R1 type="${securityType}"`)
+      if (securityType === 'psk') {
+        console.log(`  - Passphrase present: ${!!szWlan.passphrase}`)
+        console.log(`  - Encryption:`, szWlan.encryption)
+      }
 
       return {
         szWlanId: net.sourceWlanId,
         name: net.name,
         ssid: net.ssid,
         securityType,
-        encryption: net.encryption?.algorithm?.toLowerCase() as 'aes' | 'tkip' | undefined,
+        encryption: szWlan.encryption?.algorithm?.toLowerCase() as 'aes' | 'tkip' | undefined,
+        passphrase: szWlan.passphrase, // Include passphrase from SmartZone data
         vlanId: net.vlan?.accessVlan,
         enabled: net.enabled ?? true,
         _zoneName: zone?.name,
