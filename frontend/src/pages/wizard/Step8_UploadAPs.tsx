@@ -87,9 +87,14 @@ export default function Step8_UploadAPs({
     try {
       // Transform SmartZone APs to R1 format
       const r1APs: R1AccessPoint[] = extractedData.accessPoints.map((ap) => {
-        // Find the zone name for tagging
+        // Find the zone name for tagging and venue ID for assignment
         const zone = extractedData.zones.find((z) => z.id === ap.zoneId)
         const zoneName = zone?.name || 'unknown-zone'
+        const venueId = venueMapping[ap.zoneId]
+
+        if (!venueId) {
+          console.warn(`No venue ID found for AP "${ap.name}" in zone "${zoneName}"`)
+        }
 
         return {
           serialNumber: sanitizeSerial(ap.serial),
@@ -103,6 +108,7 @@ export default function Step8_UploadAPs({
                 longitude: ap.gps.longitude,
               }
             : undefined,
+          venueId: venueId, // Required by R1 API
         }
       })
 

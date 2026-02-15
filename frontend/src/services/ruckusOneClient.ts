@@ -622,7 +622,7 @@ export async function batchUploadAPs(
 
 /**
  * Assign APs to AP Group
- * PUT /venues/{venueId}/apGroups/{apGroupId}/aps
+ * POST /venues/{venueId}/apGroups/{apGroupId}/aps
  */
 export async function assignAPsToGroup(
   creds: RuckusOneCredentials,
@@ -633,7 +633,7 @@ export async function assignAPsToGroup(
 ): Promise<void> {
   await apiRequest<unknown>(
     creds,
-    'PUT',
+    'POST',
     `/venues/${venueId}/apGroups/${apGroupId}/aps`,
     { serialNumbers },
     msp
