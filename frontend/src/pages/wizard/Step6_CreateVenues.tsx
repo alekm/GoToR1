@@ -44,7 +44,7 @@ export default function Step6_CreateVenues({
           addressLine1: '',
           city: '',
           state: '',
-          country: '',  // Don't default to 'USA' - causes R1 to require city
+          country: 'USA',  // Default for user convenience, but only sent if city is filled
           postalCode: '',
         },
       }),
@@ -82,10 +82,9 @@ export default function Step6_CreateVenues({
         const formData = venueMapping[zone.id]
 
         try {
-          // Only include address if fields are filled
-          // Note: R1 requires city if any address field is provided
-          const hasAddress = formData.addressLine1 || formData.city || formData.state ||
-                            formData.country || formData.postalCode
+          // Only include address if city is filled (R1 requires city for addresses)
+          // Country defaults to 'USA' for UX but isn't sent unless city is provided
+          const hasAddress = formData.city && formData.city.trim().length > 0
 
           const venueData: R1Venue = {
             name: formData.name,
