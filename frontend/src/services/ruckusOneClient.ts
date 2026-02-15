@@ -576,6 +576,113 @@ export async function listAPGroups(
 }
 
 // ============================================================================
+// RADIUS SERVER PROFILE MANAGEMENT
+// Based on wifi-offline-17.3.3.118-public-openapi3.json
+// ============================================================================
+
+export interface R1RadiusServer {
+  ip: string
+  port: number
+  sharedSecret?: string
+}
+
+export interface R1RadiusServerProfileInput {
+  name: string
+  type: 'AUTHENTICATION' | 'ACCOUNTING'
+  primary: R1RadiusServer
+  secondary?: R1RadiusServer
+}
+
+export interface R1RadiusServerProfileResponse {
+  id: string
+}
+
+/**
+ * Create RADIUS Server Profile
+ * POST /radiusServerProfiles
+ *
+ * Uses API v1.1 (application/vnd.ruckus.v1.1+json) where sharedSecret is optional.
+ * This allows migration even when SmartZone doesn't export shared secrets.
+ */
+export async function createRadiusServerProfile(
+  creds: RuckusOneCredentials,
+  profile: R1RadiusServerProfileInput,
+  msp?: MspContext
+): Promise<R1RadiusServerProfileResponse> {
+  const token = await getAccessToken(creds)
+  const region = creds.region || 'na'
+
+  const payload: any = {
+    name: profile.name,
+    type: profile.type,
+    primary: {
+      ip: profile.primary.ip,
+      port: profile.primary.port,
+    },
+  }
+
+  // Only include sharedSecret if provided (v1.1 API allows omission)
+  if (profile.primary.sharedSecret) {
+    payload.primary.sharedSecret = profile.primary.sharedSecret
+  }
+
+  if (profile.secondary) {
+    payload.secondary = {
+      ip: profile.secondary.ip,
+      port: profile.secondary.port,
+    }
+    if (profile.secondary.sharedSecret) {
+      payload.secondary.sharedSecret = profile.secondary.sharedSecret
+    }
+  }
+
+  const response = await apiFetch(region, `/radiusServerProfiles`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/vnd.ruckus.v1.1+json', // Use v1.1 API where sharedSecret is optional
+      Accept: 'application/vnd.ruckus.v1.1+json',
+    },
+    body: JSON.stringify(payload),
+  })
+
+  if (!response.ok) {
+    const errorText = await response.text()
+    throw new Error(`RADIUS profile creation failed: ${response.status} - ${errorText}`)
+  }
+
+  const result = await response.json()
+  console.log('createRadiusServerProfile response:', result)
+
+  // R1 API may return different response structures
+  const profileData = result.result || result.response || result
+
+  if (!profileData || !profileData.id) {
+    throw new Error(`RADIUS server profile creation failed - unexpected response structure. Got: ${JSON.stringify(result)}`)
+  }
+
+  return { id: profileData.id }
+}
+
+/**
+ * List RADIUS Server Profiles
+ * GET /radiusServerProfiles
+ */
+export async function listRadiusServerProfiles(
+  creds: RuckusOneCredentials,
+  msp?: MspContext
+): Promise<any[]> {
+  const response = await apiRequest<{ list?: any[] }>(
+    creds,
+    'GET',
+    `/radiusServerProfiles`,
+    undefined,
+    msp
+  )
+  return response.list || []
+}
+
+// ============================================================================
 // ACCESS POINT MANAGEMENT
 // Based on wifi-offline-17.3.3.118-public-openapi3.json
 // ============================================================================

@@ -47,6 +47,7 @@ export interface MigrationProject {
   validationReport?: ValidationReport
   venueMapping?: Record<string, string>  // SmartZone zone ID -> RUCKUS One venue ID
   apGroupMapping?: Record<string, string> // SmartZone AP Group ID -> RUCKUS One AP Group ID
+  radiusMapping?: Record<string, string> // SmartZone RADIUS service ID -> RUCKUS One RADIUS profile ID
 
   checkpoints: Checkpoint[]
   errors: MigrationError[]
@@ -80,6 +81,7 @@ export interface SmartZoneData {
   apGroups: SZAPGroup[]
   accessPoints: SZAccessPoint[]
   switches: SZSwitch[]                // SmartZone-managed switches
+  radiusServices: SZRadiusAuthService[] // RADIUS authentication/accounting services
   extractedAt: string
   totalItems: {
     zones: number
@@ -87,6 +89,7 @@ export interface SmartZoneData {
     apGroups: number
     aps: number
     switches: number
+    radiusServices: number
   }
 }
 
@@ -193,6 +196,24 @@ export interface SZSwitchPort {
   status?: string
 }
 
+export interface SZRadiusAuthService {
+  id: string
+  zoneId: string                      // Zone this RADIUS service belongs to
+  name: string
+  description?: string
+  type: 'Authentication' | 'Accounting' // Service type
+  primary: {
+    ip: string
+    port: number
+    sharedSecret?: string             // May not be retrievable from SZ API
+  }
+  secondary?: {
+    ip: string
+    port: number
+    sharedSecret?: string
+  }
+}
+
 // ============================================================================
 // RUCKUS ONE CONFIGURATION
 // ============================================================================
@@ -216,6 +237,7 @@ export interface RuckusOneData {
   apGroups: R1APGroup[]
   accessPoints: R1AccessPoint[]
   switches: R1Switch[]
+  radiusProfiles: R1RadiusServerProfile[] // RADIUS server profiles for AAA
   transformedAt: string
 }
 
@@ -301,6 +323,23 @@ export interface R1SwitchPortConfig {
   vlanId?: number
   poeEnabled?: boolean
   description?: string
+}
+
+export interface R1RadiusServerProfile {
+  id?: string                         // Set after creation in R1
+  name: string
+  type: 'AUTHENTICATION' | 'ACCOUNTING'
+  primary: {
+    ip: string
+    port: number
+    sharedSecret?: string             // Required for creation but may not be in SZ export
+  }
+  secondary?: {
+    ip: string
+    port: number
+    sharedSecret?: string
+  }
+  sourceRadiusServiceId: string       // Track original SZ RADIUS service ID
 }
 
 // ============================================================================

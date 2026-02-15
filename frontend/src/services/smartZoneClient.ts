@@ -13,6 +13,7 @@ import type {
   SZAPGroup,
   SZAccessPoint,
   SZSwitch,
+  SZRadiusAuthService,
   SmartZoneData,
 } from '../types/migration'
 
@@ -422,6 +423,49 @@ export async function getSwitches(config: SmartZoneConfig): Promise<SZSwitch[]> 
 }
 
 /**
+ * Get RADIUS authentication/accounting services for a zone
+ */
+export async function getRadiusServices(
+  config: SmartZoneConfig,
+  zoneId: string
+): Promise<SZRadiusAuthService[]> {
+  try {
+    interface RadiusServiceResponse {
+      list?: any[]
+      totalCount?: number
+    }
+
+    const response = await apiRequest<RadiusServiceResponse>(
+      config,
+      `/wsg/api/public/${config.apiVersion}/rkszones/${zoneId}/aaa/radius`
+    )
+
+    const services: SZRadiusAuthService[] = (response.list || []).map((svc: any) => ({
+      id: svc.id,
+      zoneId: zoneId,
+      name: svc.name || `RADIUS-${svc.id}`,
+      description: svc.description,
+      type: svc.type === 'ACCOUNTING' ? 'Accounting' : 'Authentication',
+      primary: {
+        ip: svc.primary?.ip || svc.primaryServer?.ip,
+        port: svc.primary?.port || svc.primaryServer?.port || 1812,
+        sharedSecret: svc.primary?.sharedSecret || svc.primaryServer?.sharedSecret,
+      },
+      secondary: svc.secondary?.ip || svc.secondaryServer?.ip ? {
+        ip: svc.secondary?.ip || svc.secondaryServer?.ip,
+        port: svc.secondary?.port || svc.secondaryServer?.port || 1812,
+        sharedSecret: svc.secondary?.sharedSecret || svc.secondaryServer?.sharedSecret,
+      } : undefined,
+    }))
+
+    return services
+  } catch (err) {
+    console.warn(`Failed to fetch RADIUS services for zone ${zoneId}:`, err)
+    return []
+  }
+}
+
+/**
  * Extract all data from SmartZone for selected zones
  */
 export async function extractData(
@@ -435,6 +479,7 @@ export async function extractData(
     apGroups: [],
     accessPoints: [],
     switches: [],
+    radiusServices: [],
     extractedAt: new Date().toISOString(),
     totalItems: {
       zones: 0,
@@ -442,6 +487,7 @@ export async function extractData(
       apGroups: 0,
       aps: 0,
       switches: 0,
+      radiusServices: 0,
     },
   }
 
@@ -451,7 +497,7 @@ export async function extractData(
   data.totalItems.zones = data.zones.length
   onProgress?.('zones', 1, 1)
 
-  // Fetch WLANs, AP Groups, and APs for each selected zone
+  // Fetch WLANs, AP Groups, APs, and RADIUS services for each selected zone
   for (let i = 0; i < data.zones.length; i++) {
     const zone = data.zones[i]
 
@@ -469,15 +515,22 @@ export async function extractData(
     onProgress?.('aps', i, data.zones.length)
     const aps = await getAccessPoints(config, zone.id)
     data.accessPoints.push(...aps)
+
+    // RADIUS Services
+    onProgress?.('radiusServices', i, data.zones.length)
+    const radiusServices = await getRadiusServices(config, zone.id)
+    data.radiusServices.push(...radiusServices)
   }
 
   onProgress?.('wlans', data.zones.length, data.zones.length)
   onProgress?.('apGroups', data.zones.length, data.zones.length)
   onProgress?.('aps', data.zones.length, data.zones.length)
+  onProgress?.('radiusServices', data.zones.length, data.zones.length)
 
   data.totalItems.wlans = data.wlans.length
   data.totalItems.apGroups = data.apGroups.length
   data.totalItems.aps = data.accessPoints.length
+  data.totalItems.radiusServices = data.radiusServices.length
 
   // Fetch switches (SmartZone-managed only)
   onProgress?.('switches', 0, 1)

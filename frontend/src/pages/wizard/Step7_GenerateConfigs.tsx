@@ -10,10 +10,12 @@ import {
   createWifiNetwork,
   createAPGroup,
   updateVenueRadioSettings,
+  createRadiusServerProfile,
   type R1WifiNetwork,
   type R1APGroup,
   type R1WifiSecurityType,
   type RuckusOneCredentials,
+  type R1RadiusServerProfileInput,
 } from '../../services/ruckusOneClient'
 import { transformAPGroups, transformRFSettings } from '../../services/dataTransformer'
 import type { SmartZoneData } from '../../types/migration'
@@ -38,11 +40,14 @@ export default function Step7_GenerateConfigs({
   const [generatedNetworks, setGeneratedNetworks] = useState<Array<R1WifiNetwork & { szWlanId: string; _zoneName?: string }>>([])
   const [generatedAPGroups, setGeneratedAPGroups] = useState<Array<R1APGroup & { szApGroupId: string; _zoneName?: string }>>([])
   const [generatedRFSettings, setGeneratedRFSettings] = useState<Array<{ zoneId: string; venueId: string; zoneName: string; settings: any }>>([])
+  const [generatedRadiusProfiles, setGeneratedRadiusProfiles] = useState<Array<R1RadiusServerProfileInput & { szRadiusId: string }>>([])
   const [creating, setCreating] = useState(false)
-  const [currentPhase, setCurrentPhase] = useState<'idle' | 'wlans' | 'apgroups' | 'rf' | 'complete'>('idle')
+  const [currentPhase, setCurrentPhase] = useState<'idle' | 'radius' | 'wlans' | 'apgroups' | 'rf' | 'complete'>('idle')
   const [createdWLANs, setCreatedWLANs] = useState<string[]>([])
   const [createdAPGroups, setCreatedAPGroups] = useState<string[]>([])
+  const [createdRadiusProfiles, setCreatedRadiusProfiles] = useState<string[]>([])
   const [apGroupMapping, setApGroupMapping] = useState<Record<string, string>>({}) // szApGroupId -> r1ApGroupId
+  const [radiusMapping, setRadiusMapping] = useState<Record<string, string>>({}) // szRadiusId -> r1RadiusId
   const [appliedRFSettings, setAppliedRFSettings] = useState<string[]>([]) // venue IDs
   const [errors, setErrors] = useState<string[]>([])
 
@@ -108,6 +113,9 @@ export default function Step7_GenerateConfigs({
         vlanId: szWlan.vlan?.accessVlan,
         enabled: true,
         _zoneName: zone?.name,
+        // Store SmartZone auth/accounting service IDs for later linkage to R1 RADIUS profiles
+        _szAuthServiceId: szWlan.authService?.id,
+        _szAccountingServiceId: szWlan.accountingService?.id,
       }
     })
 
@@ -148,6 +156,25 @@ export default function Step7_GenerateConfigs({
       .filter((s): s is NonNullable<typeof s> => s !== null)
 
     setGeneratedRFSettings(rfSettings)
+
+    // Generate RADIUS server profiles from SmartZone RADIUS services
+    const radiusProfiles = extractedData.radiusServices.map((szRadius) => ({
+      szRadiusId: szRadius.id,
+      name: szRadius.name,
+      type: szRadius.type.toUpperCase() as 'AUTHENTICATION' | 'ACCOUNTING',
+      primary: {
+        ip: szRadius.primary.ip,
+        port: szRadius.primary.port,
+        sharedSecret: szRadius.primary.sharedSecret, // Optional in R1 API v1.1
+      },
+      secondary: szRadius.secondary ? {
+        ip: szRadius.secondary.ip,
+        port: szRadius.secondary.port,
+        sharedSecret: szRadius.secondary.sharedSecret, // Optional in R1 API v1.1
+      } : undefined,
+    }))
+
+    setGeneratedRadiusProfiles(radiusProfiles)
   }, [extractedData, venueMapping])
 
   const handleCreateConfigs = async () => {
@@ -162,17 +189,66 @@ export default function Step7_GenerateConfigs({
     const r1Credentials: RuckusOneCredentials = credentials
 
     try {
+      // Phase 0: Create RADIUS Server Profiles (for AAA networks)
+      setCurrentPhase('radius')
+      const newRadiusMapping: Record<string, string> = {}
+
+      for (const radiusProfile of generatedRadiusProfiles) {
+        try {
+          console.log(`Creating RADIUS profile "${radiusProfile.name}" (${radiusProfile.type})`)
+          const result = await createRadiusServerProfile(r1Credentials, radiusProfile)
+          setCreatedRadiusProfiles((prev) => [...prev, radiusProfile.szRadiusId])
+          newRadiusMapping[radiusProfile.szRadiusId] = result.id
+          setRadiusMapping((prev) => ({ ...prev, [radiusProfile.szRadiusId]: result.id }))
+          console.log(`✓ RADIUS profile "${radiusProfile.name}" created with ID: ${result.id}`)
+        } catch (err) {
+          const errorMsg = err instanceof Error ? err.message : 'Unknown error'
+          console.error(`✗ RADIUS profile "${radiusProfile.name}" creation failed:`, errorMsg)
+          setErrors((prev) => [...prev, `Failed to create RADIUS profile "${radiusProfile.name}": ${errorMsg}`])
+        }
+      }
+
       // Phase 1: Create WLANs
       setCurrentPhase('wlans')
       for (const network of generatedNetworks) {
         try {
+          // Link AAA networks to RADIUS profiles if available
+          const networkWithRadius: R1WifiNetwork = { ...network }
+
+          if (network.securityType === 'aaa') {
+            // @ts-ignore - temporary access to private fields
+            const szAuthServiceId = network._szAuthServiceId
+            // @ts-ignore - temporary access to private fields
+            const szAccountingServiceId = network._szAccountingServiceId
+
+            if (szAuthServiceId && newRadiusMapping[szAuthServiceId]) {
+              networkWithRadius.authServiceOrProfile = { id: newRadiusMapping[szAuthServiceId] }
+              console.log(`  - Linked auth service: ${newRadiusMapping[szAuthServiceId]}`)
+            } else if (szAuthServiceId) {
+              console.warn(`  - Auth service ${szAuthServiceId} not found in RADIUS mapping`)
+            }
+
+            if (szAccountingServiceId && newRadiusMapping[szAccountingServiceId]) {
+              networkWithRadius.accountingServiceOrProfile = { id: newRadiusMapping[szAccountingServiceId] }
+              console.log(`  - Linked accounting service: ${newRadiusMapping[szAccountingServiceId]}`)
+            }
+
+            // Note: AAA networks require pre-configured RADIUS servers in R1
+            if (!networkWithRadius.authServiceOrProfile) {
+              console.warn(`  ⚠️  AAA network "${network.name}" has no linked RADIUS auth service - may fail creation`)
+            }
+          }
+
           console.log(`Creating WLAN "${network.name}":`, {
             securityType: network.securityType,
             hasPassphrase: !!network.passphrase,
             encryption: network.encryption,
             vlanId: network.vlanId,
+            hasAuthService: !!networkWithRadius.authServiceOrProfile,
+            hasAccountingService: !!networkWithRadius.accountingServiceOrProfile,
           })
-          await createWifiNetwork(r1Credentials, network)
+
+          await createWifiNetwork(r1Credentials, networkWithRadius)
           setCreatedWLANs((prev) => [...prev, network.szWlanId])
           console.log(`✓ WLAN "${network.name}" created successfully`)
         } catch (err) {
@@ -218,6 +294,7 @@ export default function Step7_GenerateConfigs({
   }
 
   const allConfigsCreated =
+    createdRadiusProfiles.length === generatedRadiusProfiles.length &&
     createdWLANs.length === generatedNetworks.length &&
     createdAPGroups.length === generatedAPGroups.length &&
     appliedRFSettings.length === generatedRFSettings.length
@@ -275,6 +352,11 @@ export default function Step7_GenerateConfigs({
             <Loader size={20} className="text-blue-600 animate-spin" />
             <div>
               <h3 className="font-semibold text-blue-900">Creating Configurations...</h3>
+              {currentPhase === 'radius' && (
+                <p className="text-sm text-blue-700">
+                  Creating RADIUS Profiles: {createdRadiusProfiles.length} of {generatedRadiusProfiles.length}
+                </p>
+              )}
               {currentPhase === 'wlans' && (
                 <p className="text-sm text-blue-700">
                   Creating WLANs: {createdWLANs.length} of {generatedNetworks.length}
@@ -324,6 +406,95 @@ export default function Step7_GenerateConfigs({
               </ul>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* RADIUS Server Profiles */}
+      {generatedRadiusProfiles.length > 0 && (
+        <div className="card mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center space-x-3">
+              <Settings size={24} className="text-gray-600" />
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">RADIUS Server Profiles ({generatedRadiusProfiles.length})</h3>
+                <p className="text-sm text-gray-500">RADIUS profiles for AAA/802.1X networks</p>
+              </div>
+            </div>
+            {currentPhase !== 'idle' && (
+              <span className="text-sm text-gray-600">
+                {createdRadiusProfiles.length} / {generatedRadiusProfiles.length} created
+              </span>
+            )}
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Primary Server</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Secondary Server</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Shared Secret</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {generatedRadiusProfiles.map((profile) => {
+                  const isCreated = createdRadiusProfiles.includes(profile.szRadiusId)
+                  const hasSecret = !!profile.primary.sharedSecret
+                  const hasSecondarySecret = profile.secondary ? !!profile.secondary.sharedSecret : true
+                  return (
+                    <tr key={profile.szRadiusId}>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{profile.name}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                          profile.type === 'AUTHENTICATION' ? 'bg-purple-100 text-purple-800' : 'bg-yellow-100 text-yellow-800'
+                        }`}>
+                          {profile.type}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-mono">
+                        {profile.primary.ip}:{profile.primary.port}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-mono">
+                        {profile.secondary ? `${profile.secondary.ip}:${profile.secondary.port}` : '-'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {hasSecret && hasSecondarySecret ? (
+                          <span className="text-green-600">✓ Present</span>
+                        ) : (
+                          <span className="text-yellow-600">⚠ Manual config needed</span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {isCreated ? (
+                          <span className="text-green-600">✓ Created</span>
+                        ) : creating && currentPhase === 'radius' ? (
+                          <Loader size={16} className="text-blue-600 animate-spin" />
+                        ) : (
+                          <span className="text-gray-400">Pending</span>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* RADIUS Shared Secret Warning */}
+          {generatedRadiusProfiles.some(p => !p.primary.sharedSecret || (p.secondary && !p.secondary.sharedSecret)) && (
+            <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+              <div className="flex items-start space-x-2">
+                <AlertCircle size={16} className="text-yellow-600 flex-shrink-0 mt-0.5" />
+                <p className="text-xs text-yellow-800">
+                  <strong>Note:</strong> Some RADIUS profiles are missing shared secrets (SmartZone did not export them).
+                  After migration, you must manually configure shared secrets in RUCKUS One for AAA/802.1X networks to function.
+                </p>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

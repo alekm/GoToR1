@@ -245,8 +245,16 @@ export default function Step10_Verification({
               <li className="flex items-start space-x-2">
                 <span className="mt-1">•</span>
                 <span>
-                  <strong>AAA/802.1X networks:</strong> RADIUS servers must be pre-configured
-                  in RUCKUS One before WLANs can authenticate users
+                  <strong>RADIUS shared secrets:</strong> If SmartZone did not export RADIUS shared
+                  secrets, you must manually configure them in RUCKUS One RADIUS server profiles
+                  before AAA/802.1X networks can authenticate users
+                </span>
+              </li>
+              <li className="flex items-start space-x-2">
+                <span className="mt-1">•</span>
+                <span>
+                  <strong>AAA/802.1X networks:</strong> Verify RADIUS server connectivity and
+                  test authentication after configuring shared secrets
                 </span>
               </li>
               <li className="flex items-start space-x-2">
