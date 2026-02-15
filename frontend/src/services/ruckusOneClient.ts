@@ -409,6 +409,7 @@ export async function createWifiNetwork(
 
   if (network.securityType === 'open') {
     payload = {
+      type: 'open',
       name: network.name,
       description: network.description,
       wlan: {
@@ -420,6 +421,7 @@ export async function createWifiNetwork(
     }
   } else if (network.securityType === 'psk') {
     payload = {
+      type: 'psk',
       name: network.name,
       description: network.description,
       wlan: {
@@ -432,6 +434,7 @@ export async function createWifiNetwork(
     }
   } else if (network.securityType === 'aaa') {
     payload = {
+      type: 'aaa',
       name: network.name,
       description: network.description,
       wlan: {
