@@ -82,7 +82,8 @@ export default function Step7_GenerateConfigs({
         name: group.name,
         description: group.description,
         venueId,
-        _zoneName: zone?.name,
+        _zoneName: zone?.name || '(No zone)',
+        _zoneId: szGroup.zoneId,
       }
     })
 
@@ -379,7 +380,11 @@ export default function Step7_GenerateConfigs({
                   <tr key={group.szApGroupId}>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{group.name}</td>
                     <td className="px-6 py-4 text-sm text-gray-500">{group.description}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{group._zoneName}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <span className={group._zoneName === '(No zone)' ? 'text-gray-400 italic' : ''}>
+                        {group._zoneName}
+                      </span>
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-mono text-xs">
                       {group.venueId?.substring(0, 8)}...
                     </td>
