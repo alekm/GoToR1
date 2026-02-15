@@ -7,11 +7,36 @@
 import { useState } from 'react'
 import { CheckCircle, Wifi, Loader, AlertCircle } from 'lucide-react'
 import {
-  batchUploadAPs,
-  assignAPsToGroup,
   type R1AccessPoint,
   type RuckusOneCredentials,
 } from '../../services/ruckusOneClient'
+import { getAccessToken } from '../../services/ruckusOneClient'
+import { apiFetch } from '../../services/apiClient'
+
+// Helper function for R1 API requests
+async function uploadAP(
+  creds: RuckusOneCredentials,
+  path: string,
+  ap: R1AccessPoint
+): Promise<void> {
+  const token = await getAccessToken(creds)
+  const region = creds.region || 'na'
+
+  const response = await apiFetch(region, path, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+    },
+    body: JSON.stringify(ap),
+  })
+
+  if (!response.ok) {
+    const errorText = await response.text()
+    throw new Error(`API request failed: ${response.status} - ${errorText}`)
+  }
+}
 import type { SmartZoneData } from '../../types/migration'
 import { useAuth } from '../../contexts/AuthContext'
 
@@ -153,95 +178,65 @@ export default function Step8_UploadAPs({
         totalBatches,
       })
 
-      console.log(`Uploading ${r1APs.length} APs in ${totalBatches} batches...`)
+      console.log(`Uploading ${r1APs.length} APs individually to their groups...`)
 
-      // Upload APs in batches
-      const result = await batchUploadAPs(
-        r1Credentials,
-        r1APs,
-        (completed, total) => {
-          const currentBatch = Math.ceil(completed / batchSize)
-          setProgress({
-            total,
-            completed,
-            failed: 0,
-            currentBatch,
-            totalBatches,
-          })
-        }
-      )
+      // Upload APs one by one to their respective AP groups or venue
+      let successCount = 0
+      let failCount = 0
 
-      setProgress((prev) => ({
-        ...prev,
-        completed: result.success.length,
-        failed: result.failed.length,
-      }))
+      for (let i = 0; i < r1APs.length; i++) {
+        const ap = r1APs[i]
+        const szAP = extractedData.accessPoints[i]
 
-      // Log failures
-      if (result.failed.length > 0) {
-        result.failed.forEach(({ ap, error }) => {
-          const errorMsg = `Failed to upload AP "${ap.name}" (${ap.serialNumber}): ${error}`
+        // Find the R1 AP Group ID if this AP belongs to a group
+        const r1ApGroupId = szAP.apGroupId ? apGroupMapping[szAP.apGroupId] : undefined
+        const venueId = venueMapping[szAP.zoneId]
+
+        if (!venueId) {
+          const errorMsg = `No venue ID for AP "${ap.name}"`
           console.error(errorMsg)
           newErrors.push(errorMsg)
-        })
-      }
-
-      console.log(`AP Upload complete: ${result.success.length} succeeded, ${result.failed.length} failed`)
-      setUploadComplete(true)
-
-      // Now assign APs to AP Groups
-      console.log('Assigning APs to AP Groups...')
-      const assignmentErrors: string[] = []
-
-      for (const apGroup of extractedData.apGroups) {
-        const r1ApGroupId = apGroupMapping[apGroup.id]
-        if (!r1ApGroupId) {
-          console.warn(`No R1 AP Group ID found for SZ AP Group ${apGroup.name}`)
+          failCount++
           continue
         }
 
-        // Find venue ID for this AP Group's zone
-        const venueId = venueMapping[apGroup.zoneId]
-        if (!venueId) {
-          console.warn(`No venue ID found for zone ${apGroup.zoneId}`)
-          continue
+        // Determine upload endpoint
+        let uploadPath: string
+        if (r1ApGroupId) {
+          // Upload directly to AP group
+          uploadPath = `/venues/${venueId}/apGroups/${r1ApGroupId}/aps`
+        } else {
+          // Upload to venue (no group)
+          uploadPath = `/venues/${venueId}/aps`
         }
-
-        // Find all APs in this AP Group
-        const apsInGroup = extractedData.accessPoints.filter(
-          (ap) => ap.apGroupId === apGroup.id
-        )
-
-        if (apsInGroup.length === 0) {
-          console.log(`No APs in AP Group ${apGroup.name}, skipping assignment`)
-          continue
-        }
-
-        const serialNumbers = apsInGroup.map((ap) => sanitizeSerial(ap.serial))
 
         try {
-          console.log(
-            `Assigning ${serialNumbers.length} APs to AP Group "${apGroup.name}" (${r1ApGroupId})`
-          )
-          await assignAPsToGroup(r1Credentials, venueId, r1ApGroupId, serialNumbers)
-          console.log(`Successfully assigned APs to "${apGroup.name}"`)
+          await uploadAP(r1Credentials, uploadPath, ap)
+          successCount++
+          console.log(`✓ Uploaded AP "${ap.name}" to ${r1ApGroupId ? 'group' : 'venue'}`)
         } catch (err) {
-          const errorMsg = `Failed to assign APs to group "${apGroup.name}": ${
+          const errorMsg = `Failed to upload AP "${ap.name}": ${
             err instanceof Error ? err.message : 'Unknown error'
           }`
           console.error(errorMsg)
-          assignmentErrors.push(errorMsg)
+          newErrors.push(errorMsg)
+          failCount++
         }
+
+        // Update progress
+        setProgress({
+          total: r1APs.length,
+          completed: i + 1,
+          failed: failCount,
+          currentBatch: Math.ceil((i + 1) / 50),
+          totalBatches,
+        })
       }
 
-      if (assignmentErrors.length > 0) {
-        setErrors([...newErrors, ...assignmentErrors])
-      } else {
-        setErrors(newErrors)
-      }
-
+      console.log(`AP Upload complete: ${successCount} succeeded, ${failCount} failed`)
+      setErrors(newErrors)
+      setUploadComplete(true)
       setAssignmentComplete(true)
-      console.log('AP assignment complete')
     } catch (err) {
       const errorMsg = `AP upload failed: ${err instanceof Error ? err.message : 'Unknown error'}`
       console.error(errorMsg)
