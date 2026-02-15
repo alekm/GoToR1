@@ -223,6 +223,7 @@ export default function MigrationWizard() {
           ruckusOneConfig={project.ruckusOneConfig}
           onComplete={handleVenueCreationComplete}
           onBack={handleBack}
+          onRefresh={refresh}
         />
       )}
     </div>

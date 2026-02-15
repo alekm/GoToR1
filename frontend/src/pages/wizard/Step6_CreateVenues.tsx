@@ -16,6 +16,7 @@ interface Step6_CreateVenuesProps {
   ruckusOneConfig?: RuckusOneConfig  // Optional - will prompt if not provided
   onComplete: (venueMapping: Record<string, string>) => void
   onBack: () => void
+  onRefresh?: () => Promise<void>  // Refresh parent project state
 }
 
 interface VenueFormData {
@@ -34,6 +35,7 @@ export default function Step6_CreateVenues({
   ruckusOneConfig: initialR1Config,
   onComplete,
   onBack,
+  onRefresh,
 }: Step6_CreateVenuesProps) {
   // R1 Credentials state (if not provided)
   const [ruckusOneConfig, setRuckusOneConfig] = useState<RuckusOneConfig | undefined>(initialR1Config)
@@ -87,6 +89,10 @@ export default function Step6_CreateVenues({
     await migrationStateManager.updateProject(projectId, {
       ruckusOneConfig: config,
     })
+    // Refresh parent project state
+    if (onRefresh) {
+      await onRefresh()
+    }
     setRuckusOneConfig(config)
   }
 
@@ -144,6 +150,9 @@ export default function Step6_CreateVenues({
   const allVenuesCreated = Object.keys(createdVenues).length === extractedData.zones.length
 
   // If R1 credentials not configured, show credential form first
+  console.log('Step6: ruckusOneConfig =', ruckusOneConfig)
+  console.log('Step6: initialR1Config =', initialR1Config)
+
   if (!ruckusOneConfig) {
     return (
       <div className="max-w-3xl mx-auto px-4 py-8">
