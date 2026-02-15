@@ -330,8 +330,8 @@ export async function createVenue(
   )
   console.log('createVenue response:', response)
 
-  // Handle both wrapped { result: {...} } and direct response formats
-  const venueData = response.result || response
+  // R1 API wraps response in { requestId: "...", response: {...} }
+  const venueData = response.response || response.result || response
 
   if (!venueData || !venueData.id) {
     throw new Error(`Venue creation failed - no valid response. Got: ${JSON.stringify(response)}`)
