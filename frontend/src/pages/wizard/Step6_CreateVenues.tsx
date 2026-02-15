@@ -101,6 +101,11 @@ export default function Step6_CreateVenues({
             tags: ['migrated-from-smartzone', `sz-zone:${zone.name}`],
           }
 
+          console.log('Creating venue:', zone.name)
+          console.log('hasAddress:', hasAddress)
+          console.log('formData.city:', formData.city)
+          console.log('Venue payload:', JSON.stringify(venueData, null, 2))
+
           const result = await createVenue(r1Credentials, venueData)
           newCreatedVenues[zone.id] = result.id
 
