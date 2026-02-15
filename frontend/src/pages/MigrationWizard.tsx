@@ -137,11 +137,11 @@ export default function MigrationWizard() {
     try {
       // Update project to next step (hardware migration)
       await migrationStateManager.updateProject(projectId, {
-        currentStep: 'upload-aps',
+        currentStep: 'migrate-aps',
         status: 'ready',
       })
       await refresh()
-      setCurrentStep('upload-aps')
+      setCurrentStep('migrate-aps')
       // TODO: Implement Steps 8-10
       alert('Steps 8-10 (Hardware Migration) coming soon...')
     } catch (err) {
