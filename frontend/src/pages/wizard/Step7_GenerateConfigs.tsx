@@ -56,21 +56,43 @@ export default function Step7_GenerateConfigs({
       const szWlan = extractedData.wlans.find((w) => w.id === net.sourceWlanId)!
       const zone = extractedData.zones.find((z) => z.id === szWlan.zoneId)
 
-      // Determine security type from SmartZone WLAN type
+      // Log full WLAN structure for debugging
+      console.log(`\n=== WLAN: ${szWlan.name} ===`)
+      console.log('SmartZone WLAN data:', {
+        type: szWlan.type,
+        encryption: szWlan.encryption,
+        hasPassphrase: !!szWlan.passphrase,
+        hasAuthService: !!szWlan.authService,
+        vlan: szWlan.vlan,
+      })
+
+      // Determine security type based on auth + encryption
+      // SmartZone separates authorization (type) and encryption
       let securityType: R1WifiSecurityType = 'open'
+
+      // Enterprise/AAA authentication (802.1X, MAC, etc.)
       if (szWlan.type.includes('8021X') || szWlan.type.includes('MAC')) {
         securityType = 'aaa'
-      } else if (szWlan.type === 'Standard' || szWlan.type.includes('WPA')) {
+      }
+      // PSK authentication (has passphrase)
+      else if (szWlan.passphrase || szWlan.type === 'Standard') {
         securityType = 'psk'
-      } else if (szWlan.type === 'Standard_Open') {
+      }
+      // Open authentication (no passphrase, no enterprise)
+      else if (szWlan.type.includes('Open') || szWlan.type === 'Guest' || szWlan.type === 'Hotspot') {
+        securityType = 'open'
+      }
+      // Default to open if uncertain
+      else {
+        console.warn(`Unknown WLAN type "${szWlan.type}", defaulting to open`)
         securityType = 'open'
       }
 
-      console.log(`WLAN "${szWlan.name}": SZ type="${szWlan.type}" → R1 type="${securityType}"`)
-      if (securityType === 'psk') {
-        console.log(`  - Passphrase present: ${!!szWlan.passphrase}`)
-        console.log(`  - Encryption:`, szWlan.encryption)
+      console.log(`Mapped to R1: securityType="${securityType}"`)
+      if (securityType === 'psk' && !szWlan.passphrase) {
+        console.warn(`⚠️  PSK network but no passphrase found!`)
       }
+      console.log('===\n')
 
       return {
         szWlanId: net.sourceWlanId,
