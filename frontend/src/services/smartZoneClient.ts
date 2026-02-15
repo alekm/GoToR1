@@ -251,10 +251,18 @@ export async function getZones(config: SmartZoneConfig): Promise<SZZone[]> {
   const fullZones: SZZone[] = []
   for (const zoneSummary of zoneList) {
     try {
-      const fullZone = await apiRequest<SZZone>(
+      const fullZone = await apiRequest<any>(
         config,
         `/wsg/api/public/v13_1/rkszones/${encodeURIComponent(zoneSummary.id)}`
       )
+
+      // EXPLORATORY LOGGING - Log complete zone structure
+      console.log('=== ZONE DETAIL RESPONSE ===')
+      console.log(`Zone: ${zoneSummary.name} (ID: ${zoneSummary.id})`)
+      console.log('Full response:', JSON.stringify(fullZone, null, 2))
+      console.log('Available fields:', Object.keys(fullZone))
+      console.log('============================')
+
       fullZones.push(fullZone)
     } catch (err) {
       console.warn(`Failed to fetch details for zone ${zoneSummary.name} (ID: ${zoneSummary.id}):`, err)
