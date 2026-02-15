@@ -12,7 +12,6 @@ import type { SmartZoneData } from '../../types/migration'
 import { useAuth } from '../../contexts/AuthContext'
 
 interface Step6_CreateVenuesProps {
-  projectId: string
   extractedData: SmartZoneData
   onComplete: (venueMapping: Record<string, string>) => void
   onBack: () => void
@@ -29,7 +28,6 @@ interface VenueFormData {
 }
 
 export default function Step6_CreateVenues({
-  projectId,
   extractedData,
   onComplete,
   onBack,
