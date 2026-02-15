@@ -216,7 +216,7 @@ export default function MigrationWizard() {
         />
       )}
 
-      {currentStep === 'venues' && project.extractedData && project.ruckusOneConfig && (
+      {currentStep === 'venues' && project.extractedData && (
         <Step6_CreateVenues
           projectId={projectId}
           extractedData={project.extractedData}

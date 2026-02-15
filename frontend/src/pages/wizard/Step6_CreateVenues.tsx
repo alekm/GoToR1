@@ -8,11 +8,12 @@ import { useState } from 'react'
 import { CheckCircle, Building2, MapPin, Loader, AlertCircle } from 'lucide-react'
 import { createVenue, type R1Venue, type RuckusOneCredentials } from '../../services/ruckusOneClient'
 import type { SmartZoneData, RuckusOneConfig } from '../../types/migration'
+import { migrationStateManager } from '../../services/migrationStateManager'
 
 interface Step6_CreateVenuesProps {
   projectId: string
   extractedData: SmartZoneData
-  ruckusOneConfig: RuckusOneConfig
+  ruckusOneConfig?: RuckusOneConfig  // Optional - will prompt if not provided
   onComplete: (venueMapping: Record<string, string>) => void
   onBack: () => void
 }
@@ -28,11 +29,21 @@ interface VenueFormData {
 }
 
 export default function Step6_CreateVenues({
+  projectId,
   extractedData,
-  ruckusOneConfig,
+  ruckusOneConfig: initialR1Config,
   onComplete,
   onBack,
 }: Step6_CreateVenuesProps) {
+  // R1 Credentials state (if not provided)
+  const [ruckusOneConfig, setRuckusOneConfig] = useState<RuckusOneConfig | undefined>(initialR1Config)
+  const [r1Form, setR1Form] = useState({
+    tenantId: '',
+    clientId: '',
+    clientSecret: '',
+    region: 'na' as 'na' | 'eu' | 'asia',
+  })
+
   const [venueMapping, setVenueMapping] = useState<Record<string, VenueFormData>>(
     extractedData.zones.reduce(
       (acc, zone) => ({
@@ -62,6 +73,21 @@ export default function Step6_CreateVenues({
         [field]: value,
       },
     })
+  }
+
+  const handleR1ConfigSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    const config: RuckusOneConfig = {
+      tenantId: r1Form.tenantId,
+      clientId: r1Form.clientId,
+      clientSecret: r1Form.clientSecret,
+      region: r1Form.region,
+    }
+    // Save to project
+    await migrationStateManager.updateProject(projectId, {
+      ruckusOneConfig: config,
+    })
+    setRuckusOneConfig(config)
   }
 
   const handleCreateVenues = async () => {
@@ -116,6 +142,98 @@ export default function Step6_CreateVenues({
   }
 
   const allVenuesCreated = Object.keys(createdVenues).length === extractedData.zones.length
+
+  // If R1 credentials not configured, show credential form first
+  if (!ruckusOneConfig) {
+    return (
+      <div className="max-w-3xl mx-auto px-4 py-8">
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">Configure RUCKUS One API</h1>
+          <p className="text-gray-600">
+            Enter your RUCKUS One API credentials to create venues and configure the migration
+          </p>
+        </div>
+
+        <form onSubmit={handleR1ConfigSubmit} className="card">
+          <div className="space-y-6">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Tenant ID *
+              </label>
+              <input
+                type="text"
+                value={r1Form.tenantId}
+                onChange={(e) => setR1Form({ ...r1Form, tenantId: e.target.value })}
+                className="input-field"
+                placeholder="e.g., abc123def456"
+                required
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Found in RUCKUS One Portal → API Credentials
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Client ID *
+              </label>
+              <input
+                type="text"
+                value={r1Form.clientId}
+                onChange={(e) => setR1Form({ ...r1Form, clientId: e.target.value })}
+                className="input-field"
+                placeholder="Client ID"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Client Secret *
+              </label>
+              <input
+                type="password"
+                value={r1Form.clientSecret}
+                onChange={(e) => setR1Form({ ...r1Form, clientSecret: e.target.value })}
+                className="input-field"
+                placeholder="Client Secret"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Region *
+              </label>
+              <select
+                value={r1Form.region}
+                onChange={(e) => setR1Form({ ...r1Form, region: e.target.value as 'na' | 'eu' | 'asia' })}
+                className="input-field"
+                required
+              >
+                <option value="na">North America (api.ruckusone.io)</option>
+                <option value="eu">Europe (api-eu.ruckusone.io)</option>
+                <option value="asia">Asia Pacific (api-asia.ruckusone.io)</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="flex justify-between items-center mt-8 pt-6 border-t">
+            <button
+              type="button"
+              onClick={onBack}
+              className="btn-secondary"
+            >
+              ← Back
+            </button>
+            <button type="submit" className="btn-primary">
+              Save & Continue →
+            </button>
+          </div>
+        </form>
+      </div>
+    )
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
