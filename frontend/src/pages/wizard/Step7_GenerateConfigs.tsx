@@ -15,7 +15,7 @@ import {
   type R1WifiSecurityType,
   type RuckusOneCredentials,
 } from '../../services/ruckusOneClient'
-import { transformWLANsToNetworks, transformAPGroups, transformRFSettings } from '../../services/dataTransformer'
+import { transformAPGroups, transformRFSettings } from '../../services/dataTransformer'
 import type { SmartZoneData } from '../../types/migration'
 import { useAuth } from '../../contexts/AuthContext'
 import { Link } from 'react-router-dom'
