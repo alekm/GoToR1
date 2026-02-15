@@ -126,11 +126,12 @@ export interface SZWLAN {
   encryption?: {
     method: string
     algorithm: string
+    passphrase?: string               // Can be in encryption object OR top level
   }
   vlan?: {
     accessVlan: number
   }
-  passphrase?: string                 // For PSK networks only
+  passphrase?: string                 // For PSK networks only (can be top level OR in encryption)
   authService?: {                     // For AAA networks (if available from SZ)
     id: string
     name: string
