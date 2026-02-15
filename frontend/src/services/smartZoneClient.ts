@@ -319,7 +319,8 @@ export async function getWLANs(config: SmartZoneConfig, zoneId: string): Promise
         config,
         `/wsg/api/public/v13_1/rkszones/${encodeURIComponent(zoneId)}/wlans/${encodeURIComponent(wlanSummary.id)}`
       )
-      fullWLANs.push(fullWLAN)
+      // SmartZone API may not include zoneId, so ensure it's set
+      fullWLANs.push({ ...fullWLAN, zoneId })
     } catch (err) {
       console.warn(`Failed to fetch details for WLAN ${wlanSummary.name} (ID: ${wlanSummary.id}):`, err)
       // Fallback: Use summary data and mark as unknown type
@@ -350,7 +351,9 @@ export async function getAPGroups(config: SmartZoneConfig, zoneId: string): Prom
     `/wsg/api/public/v13_1/rkszones/${encodeURIComponent(zoneId)}/apgroups`
   )
 
-  return response.list || []
+  // SmartZone API doesn't include zoneId in response, so add it manually
+  const apGroups = response.list || []
+  return apGroups.map(group => ({ ...group, zoneId }))
 }
 
 /**
