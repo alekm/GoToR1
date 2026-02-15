@@ -321,17 +321,23 @@ export async function createVenue(
   venue: R1Venue,
   msp?: MspContext
 ): Promise<R1VenueCreateResponse> {
-  const response = await apiRequest<{ result?: R1VenueCreateResponse }>(
+  const response = await apiRequest<any>(
     creds,
     'POST',
     '/venues',
     venue,
     msp
   )
-  if (!response.result) {
-    throw new Error('Venue creation failed - no result in response')
+  console.log('createVenue response:', response)
+
+  // Handle both wrapped { result: {...} } and direct response formats
+  const venueData = response.result || response
+
+  if (!venueData || !venueData.id) {
+    throw new Error(`Venue creation failed - no valid response. Got: ${JSON.stringify(response)}`)
   }
-  return response.result
+
+  return venueData
 }
 
 /**
