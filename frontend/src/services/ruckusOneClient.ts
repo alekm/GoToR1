@@ -432,7 +432,7 @@ export async function createWifiNetwork(
         enabled: network.enabled ?? true,
         vlanId: network.vlanId,
         passphrase: network.passphrase,
-        wlanSecurity: network.encryption === 'tkip' ? 'WPA_WPA2_Personal' : 'WPA2_Personal',
+        wlanSecurity: network.encryption === 'tkip' ? 'WPA_WPA2_PSK' : 'WPA2_PSK',
       },
     }
     console.log('[R1 API] Payload (PSK):', JSON.stringify(payload, null, 2))
