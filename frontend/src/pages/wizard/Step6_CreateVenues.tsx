@@ -71,6 +71,23 @@ export default function Step6_CreateVenues({
       return
     }
 
+    // Validate all venues have required fields (city and country are required by R1 API)
+    const validationErrors: string[] = []
+    for (const zone of extractedData.zones) {
+      const formData = venueMapping[zone.id]
+      if (!formData.city || formData.city.trim().length === 0) {
+        validationErrors.push(`Zone "${zone.name}": City is required`)
+      }
+      if (!formData.country || formData.country.trim().length === 0) {
+        validationErrors.push(`Zone "${zone.name}": Country is required`)
+      }
+    }
+
+    if (validationErrors.length > 0) {
+      setErrors(validationErrors)
+      return
+    }
+
     setCreating(true)
     setErrors([])
     const newCreatedVenues: Record<string, string> = {}
@@ -82,28 +99,21 @@ export default function Step6_CreateVenues({
         const formData = venueMapping[zone.id]
 
         try {
-          // Only include address if city is filled (R1 requires city for addresses)
-          // Country defaults to 'USA' for UX but isn't sent unless city is provided
-          const hasAddress = formData.city && formData.city.trim().length > 0
-
+          // R1 API requires address with at minimum city and country
           const venueData: R1Venue = {
             name: formData.name,
             description: formData.description,
-            ...(hasAddress && {
-              address: {
-                addressLine1: formData.addressLine1 || undefined,
-                city: formData.city || undefined,
-                state: formData.state || undefined,
-                country: formData.country || undefined,
-                postalCode: formData.postalCode || undefined,
-              },
-            }),
+            address: {
+              addressLine1: formData.addressLine1 || undefined,
+              city: formData.city,
+              state: formData.state || undefined,
+              country: formData.country,
+              postalCode: formData.postalCode || undefined,
+            },
             tags: ['migrated-from-smartzone', `sz-zone:${zone.name}`],
           }
 
           console.log('Creating venue:', zone.name)
-          console.log('hasAddress:', hasAddress)
-          console.log('formData.city:', formData.city)
           console.log('Venue payload:', JSON.stringify(venueData, null, 2))
 
           const result = await createVenue(r1Credentials, venueData)
@@ -184,7 +194,7 @@ export default function Step6_CreateVenues({
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">Create Venues in RUCKUS One</h1>
         <p className="text-gray-600">
-          Configure venue details for each SmartZone zone before creating them in RUCKUS One
+          Configure venue details for each SmartZone zone. At minimum, each venue requires a name, city, and country.
         </p>
       </div>
 
@@ -289,7 +299,7 @@ export default function Step6_CreateVenues({
                 <div className="col-span-2">
                   <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center space-x-2">
                     <MapPin size={16} />
-                    <span>Address (Optional)</span>
+                    <span>Street Address</span>
                   </label>
                   <input
                     type="text"
@@ -297,12 +307,14 @@ export default function Step6_CreateVenues({
                     onChange={(e) => updateVenue(zone.id, 'addressLine1', e.target.value)}
                     disabled={creating || isCreated}
                     className="input"
-                    placeholder="Street address"
+                    placeholder="Street address (optional)"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    City <span className="text-red-600">*</span>
+                  </label>
                   <input
                     type="text"
                     value={formData.city}
@@ -310,30 +322,34 @@ export default function Step6_CreateVenues({
                     disabled={creating || isCreated}
                     className="input"
                     placeholder="City"
+                    required
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">State</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">State/Province</label>
                   <input
                     type="text"
                     value={formData.state}
                     onChange={(e) => updateVenue(zone.id, 'state', e.target.value)}
                     disabled={creating || isCreated}
                     className="input"
-                    placeholder="State"
+                    placeholder="State or Province"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Country</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Country <span className="text-red-600">*</span>
+                  </label>
                   <input
                     type="text"
                     value={formData.country}
                     onChange={(e) => updateVenue(zone.id, 'country', e.target.value)}
                     disabled={creating || isCreated}
                     className="input"
-                    placeholder="Country"
+                    placeholder="Country (e.g., USA, Canada, UK)"
+                    required
                   />
                 </div>
 

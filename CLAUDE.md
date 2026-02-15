@@ -428,6 +428,24 @@ R1 API requires different payload structures for each security type:
 - **PSK**: `type: 'STANDARD'`, `passphrase` (required), `encryption: {method, algorithm}`
 - **AAA**: `type: 'STANDARD_8021X'`, always AES encryption, optional RADIUS service IDs
 
+### Venue Creation Requirements
+
+**Critical**: The R1 API requires `address` field for all venue creation (error VENUE-10001).
+
+Required fields:
+- `name` (string, 2-32 chars, pattern: `\s*\S+\s*\S+.*`)
+- `address` (object, **required**)
+  - `city` (string, **required**)
+  - `country` (string, **required**)
+  - `addressLine`, `state`, `postalCode` (optional)
+
+**Common Error**: Omitting the `address` field entirely results in:
+```
+ErrorResponse(code=VENUE-10001.message, message=Address should not be empty.)
+```
+
+**Solution**: Always include `address` object with at minimum `city` and `country` fields.
+
 ### Working Directory for Dev Server
 
 **Critical**: `netlify dev` must run from repository root (not `frontend/` subdirectory)

@@ -297,7 +297,7 @@ export interface R1Venue {
   id?: string
   name: string
   description?: string
-  address?: R1Address
+  address: R1Address // Required by R1 API
   tags?: string[]
   isTemplate?: boolean
 }
@@ -305,9 +305,9 @@ export interface R1Venue {
 export interface R1Address {
   addressLine1?: string
   addressLine2?: string
-  city?: string
+  city: string // Required by R1 API
   state?: string
-  country?: string
+  country: string // Required by R1 API
   postalCode?: string
 }
 
