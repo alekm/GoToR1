@@ -231,17 +231,21 @@ async function apiRequest<T>(
   if (!response.ok) {
     let errorDetail = ''
     try {
-      const errorData = await response.json()
-      errorDetail = JSON.stringify(errorData)
-    } catch {
+      // Read as text first (can only read body once)
+      const errorText = await response.text()
       try {
-        errorDetail = await response.text()
+        // Try to parse as JSON for structured error messages
+        const errorData = JSON.parse(errorText)
+        errorDetail = JSON.stringify(errorData)
       } catch {
-        errorDetail = 'Unable to parse error response'
+        // If not JSON, use raw text
+        errorDetail = errorText
       }
+    } catch {
+      errorDetail = 'Unable to read error response'
     }
     throw new Error(
-      `API request failed: ${response.status} ${response.statusText}${errorDetail ? ` - ${errorDetail}` : ''}`
+      `API request failed: ${response.status}${errorDetail ? ` - ${errorDetail}` : ''}`
     )
   }
 

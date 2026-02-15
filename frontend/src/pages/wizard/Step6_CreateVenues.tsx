@@ -82,16 +82,22 @@ export default function Step6_CreateVenues({
         const formData = venueMapping[zone.id]
 
         try {
+          // Only include address if at least one field is filled
+          const hasAddress = formData.addressLine1 || formData.city || formData.state ||
+                            formData.country || formData.postalCode
+
           const venueData: R1Venue = {
             name: formData.name,
             description: formData.description,
-            address: {
-              addressLine1: formData.addressLine1 || undefined,
-              city: formData.city || undefined,
-              state: formData.state || undefined,
-              country: formData.country || undefined,
-              postalCode: formData.postalCode || undefined,
-            },
+            ...(hasAddress && {
+              address: {
+                addressLine1: formData.addressLine1 || undefined,
+                city: formData.city || undefined,
+                state: formData.state || undefined,
+                country: formData.country || undefined,
+                postalCode: formData.postalCode || undefined,
+              },
+            }),
             tags: ['migrated-from-smartzone', `sz-zone:${zone.name}`],
           }
 
