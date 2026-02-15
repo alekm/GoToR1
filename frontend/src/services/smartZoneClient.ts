@@ -249,7 +249,11 @@ export async function getZones(config: SmartZoneConfig): Promise<SZZone[]> {
 
   // Step 2: Fetch full details for each zone to get RF configuration
   const fullZones: SZZone[] = []
+  console.log(`=== FETCHING DETAILS FOR ${zoneList.length} ZONES ===`)
+
   for (const zoneSummary of zoneList) {
+    console.log(`Fetching zone: ${zoneSummary.name} (ID: ${zoneSummary.id})`)
+
     try {
       const fullZone = await apiRequest<any>(
         config,
@@ -257,15 +261,19 @@ export async function getZones(config: SmartZoneConfig): Promise<SZZone[]> {
       )
 
       // EXPLORATORY LOGGING - Log complete zone structure
-      console.log('=== ZONE DETAIL RESPONSE ===')
-      console.log(`Zone: ${zoneSummary.name} (ID: ${zoneSummary.id})`)
+      console.log('=== ZONE DETAIL SUCCESS ===')
+      console.log(`Zone: ${zoneSummary.name}`)
       console.log('Full response:', JSON.stringify(fullZone, null, 2))
       console.log('Available fields:', Object.keys(fullZone))
-      console.log('============================')
+      console.log('===========================')
 
       fullZones.push(fullZone)
     } catch (err) {
-      console.warn(`Failed to fetch details for zone ${zoneSummary.name} (ID: ${zoneSummary.id}):`, err)
+      console.error(`=== ZONE DETAIL FAILED ===`)
+      console.error(`Zone: ${zoneSummary.name} (ID: ${zoneSummary.id})`)
+      console.error('Error:', err)
+      console.error('==========================')
+
       // Fallback: Use summary data
       fullZones.push({
         id: zoneSummary.id,
@@ -275,6 +283,8 @@ export async function getZones(config: SmartZoneConfig): Promise<SZZone[]> {
       })
     }
   }
+
+  console.log(`=== ZONE DETAIL FETCH COMPLETE: ${fullZones.length} zones ===`)
 
   return fullZones
 }
