@@ -5,22 +5,24 @@
  */
 
 import { useState, useEffect } from 'react'
-import { CheckCircle, Wifi, Radio, Loader, AlertCircle } from 'lucide-react'
+import { CheckCircle, Wifi, Radio, Loader, AlertCircle, Settings } from 'lucide-react'
 import {
   createWifiNetwork,
   createAPGroup,
+  updateVenueRadioSettings,
   type R1WifiNetwork,
   type R1APGroup,
   type R1WifiSecurityType,
   type RuckusOneCredentials,
 } from '../../services/ruckusOneClient'
-import { transformWLANsToNetworks, transformAPGroups } from '../../services/dataTransformer'
-import type { SmartZoneData, RuckusOneConfig } from '../../types/migration'
+import { transformWLANsToNetworks, transformAPGroups, transformRFSettings } from '../../services/dataTransformer'
+import type { SmartZoneData } from '../../types/migration'
+import { useAuth } from '../../contexts/AuthContext'
+import { Link } from 'react-router-dom'
 
 interface Step7_GenerateConfigsProps {
   projectId: string
   extractedData: SmartZoneData
-  ruckusOneConfig: RuckusOneConfig
   venueMapping: Record<string, string> // zoneId -> venueId
   onComplete: () => void
   onBack: () => void
@@ -28,25 +30,20 @@ interface Step7_GenerateConfigsProps {
 
 export default function Step7_GenerateConfigs({
   extractedData,
-  ruckusOneConfig,
   venueMapping,
   onComplete,
   onBack,
 }: Step7_GenerateConfigsProps) {
+  const { credentials, isConfigured } = useAuth()
   const [generatedNetworks, setGeneratedNetworks] = useState<Array<R1WifiNetwork & { szWlanId: string; _zoneName?: string }>>([])
   const [generatedAPGroups, setGeneratedAPGroups] = useState<Array<R1APGroup & { szApGroupId: string; _zoneName?: string }>>([])
+  const [generatedRFSettings, setGeneratedRFSettings] = useState<Array<{ zoneId: string; venueId: string; zoneName: string; settings: any }>>([])
   const [creating, setCreating] = useState(false)
-  const [currentPhase, setCurrentPhase] = useState<'idle' | 'wlans' | 'apgroups' | 'complete'>('idle')
+  const [currentPhase, setCurrentPhase] = useState<'idle' | 'wlans' | 'apgroups' | 'rf' | 'complete'>('idle')
   const [createdWLANs, setCreatedWLANs] = useState<string[]>([])
   const [createdAPGroups, setCreatedAPGroups] = useState<string[]>([])
+  const [appliedRFSettings, setAppliedRFSettings] = useState<string[]>([]) // venue IDs
   const [errors, setErrors] = useState<string[]>([])
-
-  const r1Credentials: RuckusOneCredentials = {
-    tenantId: ruckusOneConfig.tenantId,
-    clientId: ruckusOneConfig.clientId,
-    clientSecret: ruckusOneConfig.clientSecret,
-    region: ruckusOneConfig.region,
-  }
 
   useEffect(() => {
     // Generate configurations on mount
@@ -91,11 +88,38 @@ export default function Step7_GenerateConfigs({
 
     setGeneratedNetworks(mappedNetworks)
     setGeneratedAPGroups(mappedAPGroups)
+
+    // Generate RF settings for each zone/venue
+    const rfSettings = extractedData.zones
+      .map((zone) => {
+        const venueId = venueMapping[zone.id]
+        if (!venueId) return null
+
+        const settings = transformRFSettings(zone)
+        if (!settings) return null
+
+        return {
+          zoneId: zone.id,
+          venueId,
+          zoneName: zone.name,
+          settings,
+        }
+      })
+      .filter((s): s is NonNullable<typeof s> => s !== null)
+
+    setGeneratedRFSettings(rfSettings)
   }, [extractedData, venueMapping])
 
   const handleCreateConfigs = async () => {
+    if (!credentials) {
+      setErrors(['RUCKUS One credentials not configured'])
+      return
+    }
+
     setCreating(true)
     setErrors([])
+
+    const r1Credentials: RuckusOneCredentials = credentials
 
     try {
       // Phase 1: Create WLANs
@@ -122,6 +146,18 @@ export default function Step7_GenerateConfigs({
         }
       }
 
+      // Phase 3: Apply RF Settings to Venues
+      setCurrentPhase('rf')
+      for (const rfConfig of generatedRFSettings) {
+        try {
+          await updateVenueRadioSettings(r1Credentials, rfConfig.venueId, rfConfig.settings)
+          setAppliedRFSettings((prev) => [...prev, rfConfig.venueId])
+        } catch (err) {
+          const errorMsg = err instanceof Error ? err.message : 'Unknown error'
+          setErrors((prev) => [...prev, `Failed to apply RF settings for venue "${rfConfig.zoneName}": ${errorMsg}`])
+        }
+      }
+
       setCurrentPhase('complete')
     } catch (err) {
       setErrors((prev) => [...prev, `Configuration creation failed: ${err instanceof Error ? err.message : 'Unknown error'}`])
@@ -131,7 +167,46 @@ export default function Step7_GenerateConfigs({
   }
 
   const allConfigsCreated =
-    createdWLANs.length === generatedNetworks.length && createdAPGroups.length === generatedAPGroups.length
+    createdWLANs.length === generatedNetworks.length &&
+    createdAPGroups.length === generatedAPGroups.length &&
+    appliedRFSettings.length === generatedRFSettings.length
+
+  // If R1 credentials not configured, show message
+  if (!isConfigured) {
+    return (
+      <div className="max-w-3xl mx-auto px-4 py-8">
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">Configure RUCKUS One API</h1>
+          <p className="text-gray-600">
+            RUCKUS One API credentials are required to configure WLANs and AP Groups
+          </p>
+        </div>
+
+        <div className="card bg-yellow-50 border-yellow-200">
+          <div className="flex items-start space-x-4">
+            <AlertCircle size={24} className="text-yellow-600 flex-shrink-0 mt-1" />
+            <div className="flex-1">
+              <h3 className="text-lg font-semibold text-yellow-900 mb-2">
+                RUCKUS One Credentials Not Configured
+              </h3>
+              <p className="text-yellow-800 mb-4">
+                Please configure your RUCKUS One API credentials in Settings before continuing.
+              </p>
+              <div className="flex items-center space-x-4">
+                <Link to="/settings" className="btn-primary flex items-center space-x-2">
+                  <Settings size={16} />
+                  <span>Go to Settings</span>
+                </Link>
+                <button onClick={onBack} className="btn-secondary">
+                  ← Back to Venue Creation
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
@@ -159,6 +234,11 @@ export default function Step7_GenerateConfigs({
                   Creating AP Groups: {createdAPGroups.length} of {generatedAPGroups.length}
                 </p>
               )}
+              {currentPhase === 'rf' && (
+                <p className="text-sm text-blue-700">
+                  Applying RF Settings: {appliedRFSettings.length} of {generatedRFSettings.length}
+                </p>
+              )}
             </div>
           </div>
         </div>
@@ -172,7 +252,7 @@ export default function Step7_GenerateConfigs({
             <div>
               <h3 className="font-semibold text-green-900">All Configurations Created Successfully!</h3>
               <p className="text-sm text-green-700">
-                Created {createdWLANs.length} WLANs and {createdAPGroups.length} AP Groups in RUCKUS One
+                Created {createdWLANs.length} WLANs, {createdAPGroups.length} AP Groups, and applied RF settings to {appliedRFSettings.length} venues
               </p>
             </div>
           </div>
@@ -319,6 +399,73 @@ export default function Step7_GenerateConfigs({
           </table>
         </div>
       </div>
+
+      {/* RF Settings */}
+      {generatedRFSettings.length > 0 && (
+        <div className="card mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center space-x-3">
+              <Settings size={24} className="text-gray-600" />
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">RF Settings ({generatedRFSettings.length})</h3>
+                <p className="text-sm text-gray-500">Radio configurations to be applied to venues</p>
+              </div>
+            </div>
+            {currentPhase !== 'idle' && (
+              <span className="text-sm text-gray-600">
+                {appliedRFSettings.length} / {generatedRFSettings.length} applied
+              </span>
+            )}
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Zone/Venue</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">2.4GHz Settings</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">5GHz Settings</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {generatedRFSettings.map((rfConfig) => {
+                  const isApplied = appliedRFSettings.includes(rfConfig.venueId)
+                  const rf24G = rfConfig.settings.radioParams24G || {}
+                  const rf50G = rfConfig.settings.radioParams50G || {}
+
+                  return (
+                    <tr key={rfConfig.venueId}>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{rfConfig.zoneName}</td>
+                      <td className="px-6 py-4 text-sm text-gray-500">
+                        {rf24G.channelBandwidth && <div>BW: {rf24G.channelBandwidth}</div>}
+                        {rf24G.method && <div>Method: {rf24G.method}</div>}
+                        {rf24G.txPower && <div>Power: {rf24G.txPower}</div>}
+                        {!rf24G.channelBandwidth && !rf24G.method && !rf24G.txPower && <span className="text-gray-400">-</span>}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-500">
+                        {rf50G.channelBandwidth && <div>BW: {rf50G.channelBandwidth}</div>}
+                        {rf50G.method && <div>Method: {rf50G.method}</div>}
+                        {rf50G.txPower && <div>Power: {rf50G.txPower}</div>}
+                        {!rf50G.channelBandwidth && !rf50G.method && !rf50G.txPower && <span className="text-gray-400">-</span>}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {isApplied ? (
+                          <span className="text-green-600">✓ Applied</span>
+                        ) : creating && currentPhase === 'rf' ? (
+                          <Loader size={16} className="text-blue-600 animate-spin" />
+                        ) : (
+                          <span className="text-gray-400">Pending</span>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* Navigation */}
       <div className="flex justify-between items-center">

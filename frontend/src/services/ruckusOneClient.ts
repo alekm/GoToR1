@@ -686,6 +686,72 @@ export async function batchUploadSwitches(
 }
 
 // ============================================================================
+// RF / RADIO SETTINGS
+// Based on wifi-offline-17.3.3.118-public-openapi3.json
+// ============================================================================
+
+export interface R1RadioParams24G {
+  allowedChannels?: string[] // ['1', '2', '3', ..., '13']
+  changeInterval?: number // 1-100, default 33
+  channelBandwidth?: 'AUTO' | '20MHz' | '40MHz'
+  method?: 'MANUAL' | 'BACKGROUND_SCANNING' | 'CHANNELFLY'
+  scanInterval?: number // 1-65535, default 20
+  txPower?: 'Auto' | 'MAX' | '-1' | '-2' | '-3' | '-4' | '-5' | '-6' | '-7' | '-8' | '-9' | '-10' | 'MIN'
+}
+
+export interface R1RadioParams50G {
+  allowedChannels?: string[] // Channel numbers as strings
+  changeInterval?: number
+  channelBandwidth?: 'AUTO' | '20MHz' | '40MHz' | '80MHz' | '160MHz'
+  method?: 'MANUAL' | 'BACKGROUND_SCANNING' | 'CHANNELFLY'
+  scanInterval?: number
+  txPower?: 'Auto' | 'MAX' | '-1' | '-2' | '-3' | '-4' | '-5' | '-6' | '-7' | '-8' | '-9' | '-10' | 'MIN'
+}
+
+export interface R1VenueRadioCustomization {
+  radioParams24G?: R1RadioParams24G
+  radioParams50G?: R1RadioParams50G
+  // radioParams6G and radioParamsDual5G also available but not commonly used
+}
+
+/**
+ * Update venue radio settings
+ * PUT /venues/{venueId}/radioSettings
+ */
+export async function updateVenueRadioSettings(
+  creds: RuckusOneCredentials,
+  venueId: string,
+  radioSettings: R1VenueRadioCustomization,
+  msp?: MspContext
+): Promise<void> {
+  await apiRequest<unknown>(
+    creds,
+    'PUT',
+    `/venues/${venueId}/radioSettings`,
+    radioSettings,
+    msp
+  )
+}
+
+/**
+ * Get venue radio settings
+ * GET /venues/{venueId}/radioSettings
+ */
+export async function getVenueRadioSettings(
+  creds: RuckusOneCredentials,
+  venueId: string,
+  msp?: MspContext
+): Promise<R1VenueRadioCustomization> {
+  return await apiRequest<R1VenueRadioCustomization>(
+    creds,
+    'GET',
+    `/venues/${venueId}/radioSettings`,
+    undefined,
+    msp
+  )
+}
+
+// ============================================================================
 // MSP / END CUSTOMER MANAGEMENT
 // Based on mspservice-offline-0.3.3-public-openapi3.json
 // ============================================================================

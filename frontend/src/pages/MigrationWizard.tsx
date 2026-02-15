@@ -13,6 +13,7 @@ import Step3_ExtractData from './wizard/Step3_ExtractData'
 import Step4_ReviewExtractedData from './wizard/Step4_ReviewExtractedData'
 import Step5_DataValidation from './wizard/Step5_DataValidation'
 import Step6_CreateVenues from './wizard/Step6_CreateVenues'
+import Step7_GenerateConfigs from './wizard/Step7_GenerateConfigs'
 import type { SmartZoneConfig, SmartZoneData, MigrationStep } from '../types/migration'
 
 export default function MigrationWizard() {
@@ -126,16 +127,33 @@ export default function MigrationWizard() {
       })
       await refresh()
       setCurrentStep('configs')
-      // TODO: Navigate to Step 7 when implemented
-      alert('Steps 7-10 coming soon...')
     } catch (err) {
       console.error('Failed to save venue mapping:', err)
       alert('Failed to proceed. Please try again.')
     }
   }
 
+  const handleConfigsComplete = async () => {
+    try {
+      // Update project to next step (hardware migration)
+      await migrationStateManager.updateProject(projectId, {
+        currentStep: 'upload-aps',
+        status: 'ready',
+      })
+      await refresh()
+      setCurrentStep('upload-aps')
+      // TODO: Implement Steps 8-10
+      alert('Steps 8-10 (Hardware Migration) coming soon...')
+    } catch (err) {
+      console.error('Failed to proceed to hardware migration:', err)
+      alert('Failed to proceed. Please try again.')
+    }
+  }
+
   const handleBack = () => {
-    if (currentStep === 'venues') {
+    if (currentStep === 'configs') {
+      setCurrentStep('venues')
+    } else if (currentStep === 'venues') {
       setCurrentStep('validate')
     } else if (currentStep === 'validate') {
       setCurrentStep('review')
@@ -174,7 +192,15 @@ export default function MigrationWizard() {
               5. Validate
             </span>
             <span className="text-gray-300">→</span>
-            <span className="text-gray-500">6-10. Migration</span>
+            <span className={currentStep === 'venues' ? 'font-bold' : 'text-gray-500'}>
+              6. Venues
+            </span>
+            <span className="text-gray-300">→</span>
+            <span className={currentStep === 'configs' ? 'font-bold' : 'text-gray-500'}>
+              7. Configure
+            </span>
+            <span className="text-gray-300">→</span>
+            <span className="text-gray-500">8-10. Hardware</span>
           </div>
         </div>
       </div>
@@ -220,6 +246,16 @@ export default function MigrationWizard() {
         <Step6_CreateVenues
           extractedData={project.extractedData}
           onComplete={handleVenueCreationComplete}
+          onBack={handleBack}
+        />
+      )}
+
+      {currentStep === 'configs' && project.extractedData && project.venueMapping && (
+        <Step7_GenerateConfigs
+          projectId={projectId}
+          extractedData={project.extractedData}
+          venueMapping={project.venueMapping}
+          onComplete={handleConfigsComplete}
           onBack={handleBack}
         />
       )}

@@ -328,3 +328,84 @@ export function getSecurityTypeDisplay(szType: string): string {
       return szType
   }
 }
+
+// ============================================================================
+// RF SETTINGS TRANSFORMATION
+// ============================================================================
+
+/**
+ * Transform SmartZone zone RF settings to RUCKUS One venue radio settings
+ */
+export function transformRFSettings(zone: SZZone): any {
+  const radioSettings: any = {}
+
+  // 2.4GHz settings
+  if (zone.channelWidth24 || zone.txPower24 || zone.autoChannelSelection24 !== undefined) {
+    radioSettings.radioParams24G = {}
+
+    // Channel bandwidth
+    if (zone.channelWidth24) {
+      radioSettings.radioParams24G.channelBandwidth = zone.channelWidth24 === '40MHz' ? '40MHz' : '20MHz'
+    }
+
+    // Channel selection method
+    if (zone.autoChannelSelection24 !== undefined) {
+      radioSettings.radioParams24G.method = zone.autoChannelSelection24 ? 'BACKGROUND_SCANNING' : 'MANUAL'
+    }
+
+    // TX Power
+    if (zone.txPower24 !== undefined) {
+      if (zone.txPower24 === 'Auto') {
+        radioSettings.radioParams24G.txPower = 'Auto'
+      } else if (typeof zone.txPower24 === 'number') {
+        // Convert power level (assume 0-max scale to MAX/-1/-2/etc)
+        radioSettings.radioParams24G.txPower = 'MAX' // Simplified - could map to specific dBm levels
+      }
+    }
+
+    // ACS change interval
+    if (zone.channelChangeFrequency24) {
+      radioSettings.radioParams24G.changeInterval = Math.min(100, Math.max(1, zone.channelChangeFrequency24))
+    }
+  }
+
+  // 5GHz settings
+  if (zone.channelWidth5 || zone.txPower5 || zone.autoChannelSelection5 !== undefined) {
+    radioSettings.radioParams50G = {}
+
+    // Channel bandwidth
+    if (zone.channelWidth5) {
+      const width = zone.channelWidth5
+      if (width === '160MHz') {
+        radioSettings.radioParams50G.channelBandwidth = '160MHz'
+      } else if (width === '80MHz') {
+        radioSettings.radioParams50G.channelBandwidth = '80MHz'
+      } else if (width === '40MHz') {
+        radioSettings.radioParams50G.channelBandwidth = '40MHz'
+      } else {
+        radioSettings.radioParams50G.channelBandwidth = '20MHz'
+      }
+    }
+
+    // Channel selection method
+    if (zone.autoChannelSelection5 !== undefined) {
+      radioSettings.radioParams50G.method = zone.autoChannelSelection5 ? 'BACKGROUND_SCANNING' : 'MANUAL'
+    }
+
+    // TX Power
+    if (zone.txPower5 !== undefined) {
+      if (zone.txPower5 === 'Auto') {
+        radioSettings.radioParams50G.txPower = 'Auto'
+      } else if (typeof zone.txPower5 === 'number') {
+        radioSettings.radioParams50G.txPower = 'MAX' // Simplified
+      }
+    }
+
+    // ACS change interval
+    if (zone.channelChangeFrequency5) {
+      radioSettings.radioParams50G.changeInterval = Math.min(100, Math.max(1, zone.channelChangeFrequency5))
+    }
+  }
+
+  return Object.keys(radioSettings).length > 0 ? radioSettings : null
+}
