@@ -228,9 +228,10 @@ export async function testConnection(
 }
 
 /**
- * Get all zones from SmartZone
+ * Get zones from SmartZone
+ * @param selectedZoneIds - Optional array of zone IDs to fetch. If provided, only these zones are fetched.
  */
-export async function getZones(config: SmartZoneConfig): Promise<SZZone[]> {
+export async function getZones(config: SmartZoneConfig, selectedZoneIds?: string[]): Promise<SZZone[]> {
   interface ZoneListResponse {
     list?: Array<{ id: string; name: string; description?: string; domainId: string }>
     totalCount?: number
@@ -242,14 +243,19 @@ export async function getZones(config: SmartZoneConfig): Promise<SZZone[]> {
     `/wsg/api/public/v13_1/rkszones`
   )
 
-  const zoneList = listResponse.list || []
-  if (zoneList.length === 0) {
+  const allZones = listResponse.list || []
+  if (allZones.length === 0) {
     return []
   }
 
+  // Filter to selected zones if specified
+  const zoneList = selectedZoneIds
+    ? allZones.filter(z => selectedZoneIds.includes(z.id))
+    : allZones
+
   // Step 2: Fetch full details for each zone to get RF configuration
   const fullZones: SZZone[] = []
-  console.log(`=== FETCHING DETAILS FOR ${zoneList.length} ZONES (all zones from SmartZone) ===`)
+  console.log(`=== FETCHING DETAILS FOR ${zoneList.length} ${selectedZoneIds ? 'SELECTED' : 'ALL'} ZONES ===`)
 
   for (const zoneSummary of zoneList) {
     console.log(`Fetching zone: ${zoneSummary.name} (ID: ${zoneSummary.id})`)
@@ -439,10 +445,9 @@ export async function extractData(
     },
   }
 
-  // Fetch all zones first
+  // Fetch selected zones only
   onProgress?.('zones', 0, 1)
-  const allZones = await getZones(config)
-  data.zones = allZones.filter((zone) => selectedZoneIds.includes(zone.id))
+  data.zones = await getZones(config, selectedZoneIds)
   data.totalItems.zones = data.zones.length
   onProgress?.('zones', 1, 1)
 
