@@ -333,7 +333,7 @@ export default function Step10_Verification({
         </button>
 
         <a
-          href="https://cloud.ruckus.com"
+          href="https://ruckus.cloud"
           target="_blank"
           rel="noopener noreferrer"
           className="btn-secondary flex items-center justify-center space-x-2"
