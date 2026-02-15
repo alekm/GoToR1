@@ -123,16 +123,20 @@ exports.handler = async (event, context) => {
     // Get response body and handle different content types
     let responseBody;
     const contentType = response.headers.get('content-type');
-    
+
+    // Read body as text first (can only read once!)
+    const bodyText = await response.text();
+
     try {
       if (contentType && contentType.includes('application/json')) {
-        responseBody = await response.json();
+        responseBody = JSON.parse(bodyText);
       } else {
-        responseBody = await response.text();
+        responseBody = bodyText;
       }
     } catch (parseError) {
       console.error('Response parsing error:', parseError.message);
-      responseBody = await response.text();
+      // Use the text we already read
+      responseBody = bodyText;
     }
 
     // Debug logging for response
