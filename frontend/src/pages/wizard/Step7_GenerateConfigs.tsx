@@ -102,6 +102,7 @@ export default function Step7_GenerateConfigs({
         name: szWlan.name,
         ssid: szWlan.ssid,
         securityType,
+        encryptionMethod: szWlan.encryption?.method, // WPA, WPA2, WPA3, etc.
         encryption: szWlan.encryption?.algorithm?.toLowerCase() as 'aes' | 'tkip' | undefined,
         passphrase: passphrase, // Include passphrase from SmartZone (from either location)
         vlanId: szWlan.vlan?.accessVlan,

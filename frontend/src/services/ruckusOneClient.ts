@@ -380,6 +380,7 @@ export interface R1WifiNetwork {
   name: string
   ssid: string
   securityType: R1WifiSecurityType
+  encryptionMethod?: string // WPA, WPA2, WPA3, etc. from SmartZone
   encryption?: 'aes' | 'tkip'
   passphrase?: string // For PSK
   vlanId?: number
@@ -423,6 +424,18 @@ export async function createWifiNetwork(
     }
     console.log('[R1 API] Payload (Open):', JSON.stringify(payload, null, 2))
   } else if (network.securityType === 'psk') {
+    // Map SmartZone encryption method to R1 wlanSecurity enum
+    let wlanSecurity = 'WPA2Personal' // default
+    if (network.encryptionMethod?.includes('WPA3')) {
+      wlanSecurity = 'WPA3'
+    } else if (network.encryptionMethod?.includes('WPA2')) {
+      wlanSecurity = 'WPA2Personal'
+    } else if (network.encryptionMethod?.includes('WPA')) {
+      wlanSecurity = 'WPAPersonal'
+    } else if (network.encryptionMethod?.toLowerCase().includes('mixed')) {
+      wlanSecurity = 'WPA23Mixed'
+    }
+
     payload = {
       type: 'psk',
       name: network.name,
@@ -432,10 +445,11 @@ export async function createWifiNetwork(
         enabled: network.enabled ?? true,
         vlanId: network.vlanId,
         passphrase: network.passphrase,
-        wlanSecurity: network.encryption === 'tkip' ? 'WPA23Mixed' : 'WPA2Personal',
+        wlanSecurity: wlanSecurity,
       },
     }
     console.log('[R1 API] Payload (PSK):', JSON.stringify(payload, null, 2))
+    console.log(`[R1 API] Mapped encryptionMethod "${network.encryptionMethod}" → wlanSecurity "${wlanSecurity}"`)
     if (!network.passphrase) {
       console.error('[R1 API] ⚠️  PSK network but passphrase is missing!')
     }
