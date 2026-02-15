@@ -24,7 +24,7 @@ interface Step7_GenerateConfigsProps {
   projectId: string
   extractedData: SmartZoneData
   venueMapping: Record<string, string> // zoneId -> venueId
-  onComplete: () => void
+  onComplete: (apGroupMapping: Record<string, string>) => void // szApGroupId -> r1ApGroupId
   onBack: () => void
 }
 
@@ -42,6 +42,7 @@ export default function Step7_GenerateConfigs({
   const [currentPhase, setCurrentPhase] = useState<'idle' | 'wlans' | 'apgroups' | 'rf' | 'complete'>('idle')
   const [createdWLANs, setCreatedWLANs] = useState<string[]>([])
   const [createdAPGroups, setCreatedAPGroups] = useState<string[]>([])
+  const [apGroupMapping, setApGroupMapping] = useState<Record<string, string>>({}) // szApGroupId -> r1ApGroupId
   const [appliedRFSettings, setAppliedRFSettings] = useState<string[]>([]) // venue IDs
   const [errors, setErrors] = useState<string[]>([])
 
@@ -137,10 +138,13 @@ export default function Step7_GenerateConfigs({
 
       // Phase 2: Create AP Groups
       setCurrentPhase('apgroups')
+      const newApGroupMapping: Record<string, string> = {}
       for (const apGroup of generatedAPGroups) {
         try {
-          await createAPGroup(r1Credentials, apGroup)
+          const result = await createAPGroup(r1Credentials, apGroup)
           setCreatedAPGroups((prev) => [...prev, apGroup.szApGroupId])
+          newApGroupMapping[apGroup.szApGroupId] = result.id
+          setApGroupMapping((prev) => ({ ...prev, [apGroup.szApGroupId]: result.id }))
         } catch (err) {
           const errorMsg = err instanceof Error ? err.message : 'Unknown error'
           setErrors((prev) => [...prev, `Failed to create AP Group "${apGroup.name}": ${errorMsg}`])
@@ -430,6 +434,7 @@ export default function Step7_GenerateConfigs({
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Zone/Venue</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">2.4GHz Settings</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">5GHz Settings</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">6GHz Settings</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                 </tr>
               </thead>
@@ -438,6 +443,7 @@ export default function Step7_GenerateConfigs({
                   const isApplied = appliedRFSettings.includes(rfConfig.venueId)
                   const rf24G = rfConfig.settings.radioParams24G || {}
                   const rf50G = rfConfig.settings.radioParams50G || {}
+                  const rf6G = rfConfig.settings.radioParams6G || {}
 
                   return (
                     <tr key={rfConfig.venueId}>
@@ -453,6 +459,12 @@ export default function Step7_GenerateConfigs({
                         {rf50G.method && <div>Method: {rf50G.method}</div>}
                         {rf50G.txPower && <div>Power: {rf50G.txPower}</div>}
                         {!rf50G.channelBandwidth && !rf50G.method && !rf50G.txPower && <span className="text-gray-400">-</span>}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-500">
+                        {rf6G.channelBandwidth && <div>BW: {rf6G.channelBandwidth}</div>}
+                        {rf6G.method && <div>Method: {rf6G.method}</div>}
+                        {rf6G.txPower && <div>Power: {rf6G.txPower}</div>}
+                        {!rf6G.channelBandwidth && !rf6G.method && !rf6G.txPower && <span className="text-gray-400">-</span>}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {isApplied ? (
@@ -484,7 +496,7 @@ export default function Step7_GenerateConfigs({
         </button>
 
         {allConfigsCreated && currentPhase === 'complete' ? (
-          <button type="button" onClick={onComplete} className="btn-primary">
+          <button type="button" onClick={() => onComplete(apGroupMapping)} className="btn-primary">
             Continue to Hardware Migration →
           </button>
         ) : (

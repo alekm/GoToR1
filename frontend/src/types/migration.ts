@@ -46,6 +46,7 @@ export interface MigrationProject {
   transformedData?: RuckusOneData
   validationReport?: ValidationReport
   venueMapping?: Record<string, string>  // SmartZone zone ID -> RUCKUS One venue ID
+  apGroupMapping?: Record<string, string> // SmartZone AP Group ID -> RUCKUS One AP Group ID
 
   checkpoints: Checkpoint[]
   errors: MigrationError[]

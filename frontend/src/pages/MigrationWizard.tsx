@@ -14,6 +14,9 @@ import Step4_ReviewExtractedData from './wizard/Step4_ReviewExtractedData'
 import Step5_DataValidation from './wizard/Step5_DataValidation'
 import Step6_CreateVenues from './wizard/Step6_CreateVenues'
 import Step7_GenerateConfigs from './wizard/Step7_GenerateConfigs'
+import Step8_UploadAPs from './wizard/Step8_UploadAPs'
+import Step9_UploadSwitches from './wizard/Step9_UploadSwitches'
+import Step10_Verification from './wizard/Step10_Verification'
 import type { SmartZoneConfig, SmartZoneData, MigrationStep } from '../types/migration'
 
 export default function MigrationWizard() {
@@ -133,25 +136,60 @@ export default function MigrationWizard() {
     }
   }
 
-  const handleConfigsComplete = async () => {
+  const handleConfigsComplete = async (apGroupMapping: Record<string, string>) => {
     try {
-      // Update project to next step (hardware migration)
+      // Save AP Group mapping and proceed to AP upload
       await migrationStateManager.updateProject(projectId, {
+        apGroupMapping,
         currentStep: 'migrate-aps',
-        status: 'ready',
+        status: 'migrating',
       })
       await refresh()
       setCurrentStep('migrate-aps')
-      // TODO: Implement Steps 8-10
-      alert('Steps 8-10 (Hardware Migration) coming soon...')
     } catch (err) {
-      console.error('Failed to proceed to hardware migration:', err)
+      console.error('Failed to proceed to AP upload:', err)
+      alert('Failed to proceed. Please try again.')
+    }
+  }
+
+  const handleAPUploadComplete = async () => {
+    try {
+      // Proceed to switch upload
+      await migrationStateManager.updateProject(projectId, {
+        currentStep: 'migrate-switches',
+        status: 'migrating',
+      })
+      await refresh()
+      setCurrentStep('migrate-switches')
+    } catch (err) {
+      console.error('Failed to proceed to switch upload:', err)
+      alert('Failed to proceed. Please try again.')
+    }
+  }
+
+  const handleSwitchUploadComplete = async () => {
+    try {
+      // Proceed to verification
+      await migrationStateManager.updateProject(projectId, {
+        currentStep: 'verify',
+        status: 'completed',
+      })
+      await refresh()
+      setCurrentStep('verify')
+    } catch (err) {
+      console.error('Failed to proceed to verification:', err)
       alert('Failed to proceed. Please try again.')
     }
   }
 
   const handleBack = () => {
-    if (currentStep === 'configs') {
+    if (currentStep === 'verify') {
+      setCurrentStep('migrate-switches')
+    } else if (currentStep === 'migrate-switches') {
+      setCurrentStep('migrate-aps')
+    } else if (currentStep === 'migrate-aps') {
+      setCurrentStep('configs')
+    } else if (currentStep === 'configs') {
       setCurrentStep('venues')
     } else if (currentStep === 'venues') {
       setCurrentStep('validate')
@@ -200,7 +238,17 @@ export default function MigrationWizard() {
               7. Configure
             </span>
             <span className="text-gray-300">→</span>
-            <span className="text-gray-500">8-10. Hardware</span>
+            <span className={currentStep === 'migrate-aps' ? 'font-bold' : 'text-gray-500'}>
+              8. APs
+            </span>
+            <span className="text-gray-300">→</span>
+            <span className={currentStep === 'migrate-switches' ? 'font-bold' : 'text-gray-500'}>
+              9. Switches
+            </span>
+            <span className="text-gray-300">→</span>
+            <span className={currentStep === 'verify' ? 'font-bold' : 'text-gray-500'}>
+              10. Verify
+            </span>
           </div>
         </div>
       </div>
@@ -256,6 +304,34 @@ export default function MigrationWizard() {
           extractedData={project.extractedData}
           venueMapping={project.venueMapping}
           onComplete={handleConfigsComplete}
+          onBack={handleBack}
+        />
+      )}
+
+      {currentStep === 'migrate-aps' && project.extractedData && project.venueMapping && project.apGroupMapping && (
+        <Step8_UploadAPs
+          extractedData={project.extractedData}
+          venueMapping={project.venueMapping}
+          apGroupMapping={project.apGroupMapping}
+          onComplete={handleAPUploadComplete}
+          onBack={handleBack}
+        />
+      )}
+
+      {currentStep === 'migrate-switches' && project.extractedData && project.venueMapping && (
+        <Step9_UploadSwitches
+          extractedData={project.extractedData}
+          venueMapping={project.venueMapping}
+          onComplete={handleSwitchUploadComplete}
+          onBack={handleBack}
+        />
+      )}
+
+      {currentStep === 'verify' && project.extractedData && project.venueMapping && (
+        <Step10_Verification
+          projectId={projectId}
+          extractedData={project.extractedData}
+          venueMapping={project.venueMapping}
           onBack={handleBack}
         />
       )}
