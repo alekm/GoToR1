@@ -411,7 +411,7 @@ export async function createWifiNetwork(
     payload = {
       name: network.name,
       ssid: network.ssid,
-      type: 'STANDARD_OPEN',
+      type: 'open',
       vlan: network.vlanId ? { accessVlan: network.vlanId } : undefined,
       encryption: { method: 'None' },
     }
@@ -419,7 +419,7 @@ export async function createWifiNetwork(
     payload = {
       name: network.name,
       ssid: network.ssid,
-      type: 'STANDARD',
+      type: 'psk',
       passphrase: network.passphrase,
       encryption: {
         method: network.encryption === 'tkip' ? 'WPA' : 'AES',
@@ -431,7 +431,7 @@ export async function createWifiNetwork(
     payload = {
       name: network.name,
       ssid: network.ssid,
-      type: 'STANDARD_8021X',
+      type: 'aaa',
       encryption: { method: 'AES', algorithm: 'AES' },
       vlan: network.vlanId ? { accessVlan: network.vlanId } : undefined,
       authServiceOrProfile: network.authServiceId
@@ -443,7 +443,7 @@ export async function createWifiNetwork(
     }
   }
 
-  const response = await apiRequest<{ result?: { id: string } }>(
+  const response = await apiRequest<any>(
     creds,
     'POST',
     '/wifiNetworks',
@@ -451,11 +451,16 @@ export async function createWifiNetwork(
     msp
   )
 
-  if (!response.result) {
-    throw new Error('WiFi network creation failed - no result in response')
+  console.log('createWifiNetwork response:', response)
+
+  // R1 API may return different response structures
+  const networkData = response.result || response.response || response
+
+  if (!networkData || !networkData.id) {
+    throw new Error(`WiFi network creation failed - unexpected response structure. Got: ${JSON.stringify(response)}`)
   }
 
-  return { id: response.result.id }
+  return { id: networkData.id }
 }
 
 /**
@@ -501,7 +506,7 @@ export async function createAPGroup(
   apGroup: R1APGroup,
   msp?: MspContext
 ): Promise<R1APGroupCreateResponse> {
-  const response = await apiRequest<{ result?: { id: string } }>(
+  const response = await apiRequest<any>(
     creds,
     'POST',
     `/venues/${apGroup.venueId}/apGroups`,
@@ -512,11 +517,16 @@ export async function createAPGroup(
     msp
   )
 
-  if (!response.result) {
-    throw new Error('AP Group creation failed - no result in response')
+  console.log('createAPGroup response:', response)
+
+  // R1 API may return different response structures
+  const apGroupData = response.result || response.response || response
+
+  if (!apGroupData || !apGroupData.id) {
+    throw new Error(`AP Group creation failed - unexpected response structure. Got: ${JSON.stringify(response)}`)
   }
 
-  return { id: response.result.id }
+  return { id: apGroupData.id }
 }
 
 /**
