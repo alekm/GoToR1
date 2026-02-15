@@ -97,6 +97,11 @@ export default function Step6_CreateVenues({
   }
 
   const handleCreateVenues = async () => {
+    if (!ruckusOneConfig) {
+      setErrors(['RUCKUS One credentials not configured'])
+      return
+    }
+
     setCreating(true)
     setErrors([])
     const newCreatedVenues: Record<string, string> = {}
