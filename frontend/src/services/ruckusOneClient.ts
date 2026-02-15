@@ -410,36 +410,38 @@ export async function createWifiNetwork(
   if (network.securityType === 'open') {
     payload = {
       name: network.name,
-      ssid: network.ssid,
-      type: 'open',
-      vlan: network.vlanId ? { accessVlan: network.vlanId } : undefined,
-      encryption: { method: 'None' },
+      description: network.description,
+      wlan: {
+        ssid: network.ssid,
+        enabled: network.enabled ?? true,
+        vlanId: network.vlanId,
+        wlanSecurity: 'Open',
+      },
     }
   } else if (network.securityType === 'psk') {
     payload = {
       name: network.name,
-      ssid: network.ssid,
-      type: 'psk',
-      passphrase: network.passphrase,
-      encryption: {
-        method: network.encryption === 'tkip' ? 'WPA' : 'AES',
-        algorithm: network.encryption === 'tkip' ? 'TKIP' : 'AES',
+      description: network.description,
+      wlan: {
+        ssid: network.ssid,
+        enabled: network.enabled ?? true,
+        vlanId: network.vlanId,
+        passphrase: network.passphrase,
+        wlanSecurity: network.encryption === 'tkip' ? 'WPA_Mixed' : 'WPA2',
       },
-      vlan: network.vlanId ? { accessVlan: network.vlanId } : undefined,
     }
   } else if (network.securityType === 'aaa') {
     payload = {
       name: network.name,
-      ssid: network.ssid,
-      type: 'aaa',
-      encryption: { method: 'AES', algorithm: 'AES' },
-      vlan: network.vlanId ? { accessVlan: network.vlanId } : undefined,
-      authServiceOrProfile: network.authServiceId
-        ? { id: network.authServiceId }
-        : undefined,
-      accountingServiceOrProfile: network.accountingServiceId
-        ? { id: network.accountingServiceId }
-        : undefined,
+      description: network.description,
+      wlan: {
+        ssid: network.ssid,
+        enabled: network.enabled ?? true,
+        vlanId: network.vlanId,
+        wlanSecurity: 'WPA2_802_1X',
+        authenticationServiceId: network.authServiceId,
+        accountingServiceId: network.accountingServiceId,
+      },
     }
   }
 
