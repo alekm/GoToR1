@@ -66,31 +66,36 @@ export default function Step7_GenerateConfigs({
         vlan: szWlan.vlan,
       })
 
+      // Extract passphrase (can be at top level OR in encryption object)
+      const passphrase = szWlan.passphrase || szWlan.encryption?.passphrase
+
       // Determine security type based on auth + encryption
-      // SmartZone separates authorization (type) and encryption
+      // SmartZone model: type (authorization) + encryption (method + algorithm + passphrase)
       let securityType: R1WifiSecurityType = 'open'
 
       // Enterprise/AAA authentication (802.1X, MAC, etc.)
       if (szWlan.type.includes('8021X') || szWlan.type.includes('MAC')) {
         securityType = 'aaa'
       }
-      // PSK authentication (has passphrase)
-      else if (szWlan.passphrase || szWlan.type === 'Standard') {
+      // PSK authentication (has passphrase in encryption or top level)
+      else if (passphrase) {
         securityType = 'psk'
       }
-      // Open authentication (no passphrase, no enterprise)
-      else if (szWlan.type.includes('Open') || szWlan.type === 'Guest' || szWlan.type === 'Hotspot') {
+      // Open authentication (no passphrase, no encryption, no enterprise)
+      else if (szWlan.encryption?.method === 'None' || !szWlan.encryption?.method) {
         securityType = 'open'
       }
-      // Default to open if uncertain
+      // Default: if uncertain but has encryption method, treat as open with encryption
       else {
-        console.warn(`Unknown WLAN type "${szWlan.type}", defaulting to open`)
+        console.warn(`Ambiguous WLAN type="${szWlan.type}", encryption="${szWlan.encryption?.method}", no passphrase - defaulting to open`)
         securityType = 'open'
       }
 
       console.log(`Mapped to R1: securityType="${securityType}"`)
-      if (securityType === 'psk' && !szWlan.passphrase) {
-        console.warn(`⚠️  PSK network but no passphrase found!`)
+      console.log(`  - Passphrase: ${passphrase ? '***present***' : 'none'}`)
+      console.log(`  - Encryption: ${szWlan.encryption?.method}/${szWlan.encryption?.algorithm}`)
+      if (securityType === 'psk' && !passphrase) {
+        console.error(`⚠️  PSK network but no passphrase found!`)
       }
       console.log('===\n')
 
@@ -100,7 +105,7 @@ export default function Step7_GenerateConfigs({
         ssid: net.ssid,
         securityType,
         encryption: szWlan.encryption?.algorithm?.toLowerCase() as 'aes' | 'tkip' | undefined,
-        passphrase: szWlan.passphrase, // Include passphrase from SmartZone data
+        passphrase: passphrase, // Include passphrase from SmartZone (from either location)
         vlanId: net.vlan?.accessVlan,
         enabled: net.enabled ?? true,
         _zoneName: zone?.name,
