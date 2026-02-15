@@ -220,10 +220,8 @@ export default function MigrationWizard() {
         <Step6_CreateVenues
           projectId={projectId}
           extractedData={project.extractedData}
-          ruckusOneConfig={project.ruckusOneConfig}
           onComplete={handleVenueCreationComplete}
           onBack={handleBack}
-          onRefresh={refresh}
         />
       )}
     </div>

@@ -5,18 +5,17 @@
  */
 
 import { useState } from 'react'
-import { CheckCircle, Building2, MapPin, Loader, AlertCircle } from 'lucide-react'
+import { CheckCircle, Building2, MapPin, Loader, AlertCircle, Settings as SettingsIcon } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { createVenue, type R1Venue, type RuckusOneCredentials } from '../../services/ruckusOneClient'
-import type { SmartZoneData, RuckusOneConfig } from '../../types/migration'
-import { migrationStateManager } from '../../services/migrationStateManager'
+import type { SmartZoneData } from '../../types/migration'
+import { useAuth } from '../../contexts/AuthContext'
 
 interface Step6_CreateVenuesProps {
   projectId: string
   extractedData: SmartZoneData
-  ruckusOneConfig?: RuckusOneConfig  // Optional - will prompt if not provided
   onComplete: (venueMapping: Record<string, string>) => void
   onBack: () => void
-  onRefresh?: () => Promise<void>  // Refresh parent project state
 }
 
 interface VenueFormData {
@@ -32,19 +31,10 @@ interface VenueFormData {
 export default function Step6_CreateVenues({
   projectId,
   extractedData,
-  ruckusOneConfig: initialR1Config,
   onComplete,
   onBack,
-  onRefresh,
 }: Step6_CreateVenuesProps) {
-  // R1 Credentials state (if not provided)
-  const [ruckusOneConfig, setRuckusOneConfig] = useState<RuckusOneConfig | undefined>(initialR1Config)
-  const [r1Form, setR1Form] = useState({
-    tenantId: '',
-    clientId: '',
-    clientSecret: '',
-    region: 'na' as 'na' | 'eu' | 'asia',
-  })
+  const { credentials, isConfigured } = useAuth()
 
   const [venueMapping, setVenueMapping] = useState<Record<string, VenueFormData>>(
     extractedData.zones.reduce(
@@ -77,27 +67,8 @@ export default function Step6_CreateVenues({
     })
   }
 
-  const handleR1ConfigSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    const config: RuckusOneConfig = {
-      tenantId: r1Form.tenantId,
-      clientId: r1Form.clientId,
-      clientSecret: r1Form.clientSecret,
-      region: r1Form.region,
-    }
-    // Save to project
-    await migrationStateManager.updateProject(projectId, {
-      ruckusOneConfig: config,
-    })
-    // Refresh parent project state
-    if (onRefresh) {
-      await onRefresh()
-    }
-    setRuckusOneConfig(config)
-  }
-
   const handleCreateVenues = async () => {
-    if (!ruckusOneConfig) {
+    if (!credentials) {
       setErrors(['RUCKUS One credentials not configured'])
       return
     }
@@ -106,12 +77,7 @@ export default function Step6_CreateVenues({
     setErrors([])
     const newCreatedVenues: Record<string, string> = {}
 
-    const r1Credentials: RuckusOneCredentials = {
-      tenantId: ruckusOneConfig.tenantId,
-      clientId: ruckusOneConfig.clientId,
-      clientSecret: ruckusOneConfig.clientSecret,
-      region: ruckusOneConfig.region,
-    }
+    const r1Credentials: RuckusOneCredentials = credentials
 
     try {
       for (const zone of extractedData.zones) {
@@ -154,97 +120,52 @@ export default function Step6_CreateVenues({
 
   const allVenuesCreated = Object.keys(createdVenues).length === extractedData.zones.length
 
-  // If R1 credentials not configured, show credential form first
-  console.log('Step6: ruckusOneConfig =', ruckusOneConfig)
-  console.log('Step6: initialR1Config =', initialR1Config)
-
-  if (!ruckusOneConfig) {
+  // If R1 credentials not configured, show message to configure in Settings
+  if (!isConfigured) {
     return (
       <div className="max-w-3xl mx-auto px-4 py-8">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Configure RUCKUS One API</h1>
           <p className="text-gray-600">
-            Enter your RUCKUS One API credentials to create venues and configure the migration
+            RUCKUS One API credentials are required to create venues and complete the migration
           </p>
         </div>
 
-        <form onSubmit={handleR1ConfigSubmit} className="card">
-          <div className="space-y-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Tenant ID *
-              </label>
-              <input
-                type="text"
-                value={r1Form.tenantId}
-                onChange={(e) => setR1Form({ ...r1Form, tenantId: e.target.value })}
-                className="input-field"
-                placeholder="e.g., abc123def456"
-                required
-              />
-              <p className="text-xs text-gray-500 mt-1">
-                Found in RUCKUS One Portal → API Credentials
+        <div className="card bg-yellow-50 border-yellow-200">
+          <div className="flex items-start space-x-4">
+            <AlertCircle size={24} className="text-yellow-600 flex-shrink-0 mt-1" />
+            <div className="flex-1">
+              <h3 className="text-lg font-semibold text-yellow-900 mb-2">
+                RUCKUS One Credentials Not Configured
+              </h3>
+              <p className="text-yellow-800 mb-4">
+                Please configure your RUCKUS One API credentials in Settings before continuing.
+                Your migration progress has been saved and you can return to this step after
+                configuring credentials.
               </p>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Client ID *
-              </label>
-              <input
-                type="text"
-                value={r1Form.clientId}
-                onChange={(e) => setR1Form({ ...r1Form, clientId: e.target.value })}
-                className="input-field"
-                placeholder="Client ID"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Client Secret *
-              </label>
-              <input
-                type="password"
-                value={r1Form.clientSecret}
-                onChange={(e) => setR1Form({ ...r1Form, clientSecret: e.target.value })}
-                className="input-field"
-                placeholder="Client Secret"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Region *
-              </label>
-              <select
-                value={r1Form.region}
-                onChange={(e) => setR1Form({ ...r1Form, region: e.target.value as 'na' | 'eu' | 'asia' })}
-                className="input-field"
-                required
-              >
-                <option value="na">North America (api.ruckusone.io)</option>
-                <option value="eu">Europe (api-eu.ruckusone.io)</option>
-                <option value="asia">Asia Pacific (api-asia.ruckusone.io)</option>
-              </select>
+              <div className="flex items-center space-x-4">
+                <Link to="/settings" className="btn-primary flex items-center space-x-2">
+                  <SettingsIcon size={16} />
+                  <span>Go to Settings</span>
+                </Link>
+                <button onClick={onBack} className="btn-secondary">
+                  ← Back to Validation
+                </button>
+              </div>
             </div>
           </div>
+        </div>
 
-          <div className="flex justify-between items-center mt-8 pt-6 border-t">
-            <button
-              type="button"
-              onClick={onBack}
-              className="btn-secondary"
-            >
-              ← Back
-            </button>
-            <button type="submit" className="btn-primary">
-              Save & Continue →
-            </button>
-          </div>
-        </form>
+        <div className="card mt-6">
+          <h3 className="font-semibold text-gray-900 mb-3">How to get your credentials:</h3>
+          <ol className="text-sm text-gray-700 space-y-2 list-decimal list-inside">
+            <li>Log into your RUCKUS One account</li>
+            <li>Navigate to Administration → Account Management → Settings</li>
+            <li>Create an Application Token with Administrator scope</li>
+            <li>Copy the Client ID, Client Secret, and Tenant ID</li>
+            <li>Enter them in the Settings page</li>
+          </ol>
+        </div>
       </div>
     )
   }
