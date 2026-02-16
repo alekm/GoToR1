@@ -44,6 +44,7 @@ export function transformData(szData: SmartZoneData): RuckusOneData {
     apGroups: transformAPGroups(szData.apGroups, szData.zones),
     accessPoints: transformAccessPoints(szData.accessPoints, szData.zones, szData.apGroups),
     switches: transformSwitches(szData.switches, szData.zones),
+    radiusProfiles: [], // RADIUS profiles are created in Step 7, not transformed here
     transformedAt: new Date().toISOString(),
   }
 }
@@ -108,13 +109,13 @@ export function transformWLANsToNetworks(wlans: SZWLAN[], zones: SZZone[]): R1Ne
 
     // Add AAA service references if available (must be manually mapped to R1 services)
     if (r1Type === 'STANDARD_8021X') {
-      // Note: authService and accountingService IDs from SmartZone won't match R1
+      // Note: authServiceOrProfile and accountingServiceOrProfile IDs from SmartZone won't match R1
       // These will need to be manually mapped in Step 7 or later
-      if (wlan.authService?.id) {
-        network.authServiceOrProfile = { id: wlan.authService.id }
+      if (wlan.authServiceOrProfile?.id) {
+        network.authServiceOrProfile = { id: wlan.authServiceOrProfile.id }
       }
-      if (wlan.accountingService?.id) {
-        network.accountingServiceOrProfile = { id: wlan.accountingService.id }
+      if (wlan.accountingServiceOrProfile?.id) {
+        network.accountingServiceOrProfile = { id: wlan.accountingServiceOrProfile.id }
       }
     }
 

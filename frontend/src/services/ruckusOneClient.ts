@@ -388,6 +388,8 @@ export interface R1WifiNetwork {
   // AAA-specific fields
   authServiceId?: string
   accountingServiceId?: string
+  authServiceOrProfile?: { id: string }  // For linking to R1 RADIUS profiles
+  accountingServiceOrProfile?: { id: string }  // For linking to R1 RADIUS profiles
   // Additional fields
   description?: string
 }
@@ -607,7 +609,7 @@ export interface R1RadiusServerProfileResponse {
 export async function createRadiusServerProfile(
   creds: RuckusOneCredentials,
   profile: R1RadiusServerProfileInput,
-  msp?: MspContext
+  _msp?: MspContext
 ): Promise<R1RadiusServerProfileResponse> {
   const token = await getAccessToken(creds)
   const region = creds.region || 'na'

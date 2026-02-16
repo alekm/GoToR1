@@ -47,7 +47,6 @@ export default function Step7_GenerateConfigs({
   const [createdAPGroups, setCreatedAPGroups] = useState<string[]>([])
   const [createdRadiusProfiles, setCreatedRadiusProfiles] = useState<string[]>([])
   const [apGroupMapping, setApGroupMapping] = useState<Record<string, string>>({}) // szApGroupId -> r1ApGroupId
-  const [radiusMapping, setRadiusMapping] = useState<Record<string, string>>({}) // szRadiusId -> r1RadiusId
   const [appliedRFSettings, setAppliedRFSettings] = useState<string[]>([]) // venue IDs
   const [errors, setErrors] = useState<string[]>([])
 
@@ -208,7 +207,6 @@ export default function Step7_GenerateConfigs({
           const result = await createRadiusServerProfile(r1Credentials, radiusProfile)
           setCreatedRadiusProfiles((prev) => [...prev, radiusProfile.szRadiusId])
           newRadiusMapping[radiusProfile.szRadiusId] = result.id
-          setRadiusMapping((prev) => ({ ...prev, [radiusProfile.szRadiusId]: result.id }))
           console.log(`✓ RADIUS profile "${radiusProfile.name}" created with ID: ${result.id}`)
         } catch (err) {
           const errorMsg = err instanceof Error ? err.message : 'Unknown error'
