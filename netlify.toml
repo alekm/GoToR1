@@ -21,3 +21,44 @@
 
 [functions]
   node_bundler = "esbuild"
+
+# Security Headers
+[[headers]]
+  for = "/*"
+  [headers.values]
+    # Content Security Policy - Allow self, inline styles (for Tailwind), and API domains
+    Content-Security-Policy = """
+      default-src 'self';
+      script-src 'self' 'unsafe-inline';
+      style-src 'self' 'unsafe-inline';
+      img-src 'self' data: https:;
+      font-src 'self' data:;
+      connect-src 'self' https://api.ruckus.cloud https://api-eu.ruckus.cloud https://api-asia.ruckus.cloud;
+      frame-ancestors 'self';
+      base-uri 'self';
+      form-action 'self';
+    """
+
+    # Prevent clickjacking attacks
+    X-Frame-Options = "SAMEORIGIN"
+
+    # Prevent MIME type sniffing
+    X-Content-Type-Options = "nosniff"
+
+    # Control referrer information
+    Referrer-Policy = "strict-origin-when-cross-origin"
+
+    # Control browser features and APIs
+    Permissions-Policy = """
+      accelerometer=(),
+      camera=(),
+      geolocation=(),
+      gyroscope=(),
+      magnetometer=(),
+      microphone=(),
+      payment=(),
+      usb=()
+    """
+
+    # Enable browser XSS protection
+    X-XSS-Protection = "1; mode=block"
