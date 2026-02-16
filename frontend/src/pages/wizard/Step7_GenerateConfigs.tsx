@@ -74,13 +74,17 @@ export default function Step7_GenerateConfigs({
       const passphrase = szWlan.passphrase || szWlan.encryption?.passphrase
 
       // Determine security type based on ACTUAL configuration (not SmartZone's type field which is often wrong)
-      // Priority: External DPSK > AAA/802.1X > Static PSK > Open
+      // Priority: DPSK (internal/external) > AAA/802.1X > Static PSK > Open
       let securityType: R1WifiSecurityType = 'open'
 
-      // External DPSK - RADIUS generates unique PSKs per device
-      if (szWlan.externalDpsk?.enabled) {
-        securityType = 'aaa'  // R1 doesn't have separate DPSK type, use AAA with RADIUS
-        console.log('  → Detected: External DPSK (RADIUS-generated PSKs)')
+      // DPSK - Dynamic PSK (either internal SmartZone-managed or external RADIUS-generated)
+      if (szWlan.dpsk?.dpskEnabled || szWlan.externalDpsk?.enabled) {
+        securityType = 'dpsk'
+        if (szWlan.externalDpsk?.enabled) {
+          console.log('  → Detected: External DPSK (RADIUS-generated PSKs)')
+        } else {
+          console.log('  → Detected: Internal DPSK (SmartZone-managed PSKs)')
+        }
       }
       // Enterprise/AAA authentication (802.1X)
       else if (szWlan.authServiceOrProfile) {

@@ -373,7 +373,7 @@ export async function getVenue(
 // Based on wifi-offline-17.3.3.118-public-openapi3.json
 // ============================================================================
 
-export type R1WifiSecurityType = 'open' | 'psk' | 'aaa'
+export type R1WifiSecurityType = 'open' | 'psk' | 'aaa' | 'dpsk'
 
 export interface R1WifiNetwork {
   id?: string
@@ -455,6 +455,31 @@ export async function createWifiNetwork(
     if (!network.passphrase) {
       console.error('[R1 API] ⚠️  PSK network but passphrase is missing!')
     }
+  } else if (network.securityType === 'dpsk') {
+    // Map encryption method to DPSK WLAN security
+    let wlanSecurity = 'WPA2Personal'  // default
+    if (network.encryptionMethod?.includes('WPA3')) {
+      wlanSecurity = 'WPA3'
+    } else if (network.encryptionMethod?.includes('WPA2')) {
+      wlanSecurity = 'WPA2Personal'
+    } else if (network.encryptionMethod?.includes('WPA')) {
+      wlanSecurity = 'WPAPersonal'
+    }
+
+    payload = {
+      type: 'dpsk',
+      name: network.name,
+      description: network.description,
+      useDpskService: true,  // Use DPSK service (external RADIUS or internal)
+      wlan: {
+        ssid: network.ssid,
+        enabled: network.enabled ?? true,
+        vlanId: network.vlanId,
+        wlanSecurity: wlanSecurity,
+      },
+    }
+    console.log('[R1 API] Payload (DPSK):', JSON.stringify(payload, null, 2))
+    console.log(`[R1 API] DPSK network - will use DPSK service for PSK generation`)
   } else if (network.securityType === 'aaa') {
     payload = {
       type: 'aaa',
