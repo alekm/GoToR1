@@ -64,42 +64,50 @@ export default function Step7_GenerateConfigs({
       console.log('SmartZone WLAN data:', {
         type: szWlan.type,
         encryption: szWlan.encryption,
-        hasPassphrase: !!szWlan.passphrase,
-        hasAuthService: !!szWlan.authService,
+        hasPassphrase: !!(szWlan.passphrase || szWlan.encryption?.passphrase),
+        hasAuthService: !!szWlan.authServiceOrProfile,
+        externalDpskEnabled: szWlan.externalDpsk?.enabled,
+        dpskEnabled: szWlan.dpsk?.dpskEnabled,
         vlan: szWlan.vlan,
       })
 
       // Extract passphrase (can be at top level OR in encryption object)
       const passphrase = szWlan.passphrase || szWlan.encryption?.passphrase
 
-      // Determine security type based on auth + encryption
-      // SmartZone model: type (authorization) + encryption (method + algorithm + passphrase)
+      // Determine security type based on ACTUAL configuration (not SmartZone's type field which is often wrong)
+      // Priority: External DPSK > AAA/802.1X > Static PSK > Open
       let securityType: R1WifiSecurityType = 'open'
 
-      // Enterprise/AAA authentication (802.1X, MAC, etc.)
-      if (szWlan.type.includes('8021X') || szWlan.type.includes('MAC')) {
-        securityType = 'aaa'
+      // External DPSK - RADIUS generates unique PSKs per device
+      if (szWlan.externalDpsk?.enabled) {
+        securityType = 'aaa'  // R1 doesn't have separate DPSK type, use AAA with RADIUS
+        console.log('  → Detected: External DPSK (RADIUS-generated PSKs)')
       }
-      // PSK authentication (has passphrase in encryption or top level)
+      // Enterprise/AAA authentication (802.1X)
+      else if (szWlan.authServiceOrProfile) {
+        securityType = 'aaa'
+        console.log('  → Detected: AAA/802.1X (Enterprise)')
+      }
+      // Static PSK authentication (has passphrase)
       else if (passphrase) {
         securityType = 'psk'
+        console.log('  → Detected: Static PSK')
       }
-      // Open authentication (no passphrase, no encryption, no enterprise)
+      // Open network (no auth, may have encryption)
       else if (szWlan.encryption?.method === 'None' || !szWlan.encryption?.method) {
         securityType = 'open'
+        console.log('  → Detected: Open (no encryption)')
       }
-      // Default: if uncertain but has encryption method, treat as open with encryption
+      // Open with encryption (rare - encrypted but no auth)
       else {
-        console.warn(`Ambiguous WLAN type="${szWlan.type}", encryption="${szWlan.encryption?.method}", no passphrase - defaulting to open`)
         securityType = 'open'
+        console.log(`  → Detected: Open with encryption (type="${szWlan.type}", method="${szWlan.encryption?.method}")`)
       }
 
       console.log(`Mapped to R1: securityType="${securityType}"`)
       console.log(`  - Passphrase: ${passphrase ? '***present***' : 'none'}`)
       console.log(`  - Encryption: ${szWlan.encryption?.method}/${szWlan.encryption?.algorithm}`)
-      if (securityType === 'psk' && !passphrase) {
-        console.error(`⚠️  PSK network but no passphrase found!`)
-      }
+      console.log(`  - Auth Service: ${szWlan.authServiceOrProfile?.name || szWlan.externalDpsk?.authService?.name || 'none'}`)
       console.log('===\n')
 
       return {
@@ -114,8 +122,9 @@ export default function Step7_GenerateConfigs({
         enabled: true,
         _zoneName: zone?.name,
         // Store SmartZone auth/accounting service IDs for later linkage to R1 RADIUS profiles
-        _szAuthServiceId: szWlan.authService?.id,
-        _szAccountingServiceId: szWlan.accountingService?.id,
+        // External DPSK uses authService from externalDpsk object, AAA uses authServiceOrProfile
+        _szAuthServiceId: szWlan.externalDpsk?.authService?.id || szWlan.authServiceOrProfile?.id,
+        _szAccountingServiceId: szWlan.accountingServiceOrProfile?.id,
       }
     })
 

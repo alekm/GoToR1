@@ -125,7 +125,7 @@ export interface SZWLAN {
   zoneId: string
   name: string
   ssid: string
-  type: string                        // 'Standard_Open', 'Standard_8021X', etc.
+  type: string                        // 'Standard_Open', 'Standard_8021X', etc. (often incorrect from SZ)
   encryption?: {
     method: string
     algorithm: string
@@ -133,15 +133,27 @@ export interface SZWLAN {
   }
   vlan?: {
     accessVlan: number
+    aaaVlanOverride?: boolean
   }
   passphrase?: string                 // For PSK networks only (can be top level OR in encryption)
-  authService?: {                     // For AAA networks (if available from SZ)
+  authServiceOrProfile?: {            // For AAA/802.1X networks (from detail endpoint)
+    id: string
+    name: string
+    throughController?: boolean
+  }
+  accountingServiceOrProfile?: {      // For AAA networks (from detail endpoint)
     id: string
     name: string
   }
-  accountingService?: {               // For AAA networks (if available from SZ)
-    id: string
-    name: string
+  dpsk?: {                            // Internal DPSK (managed by SmartZone)
+    dpskEnabled: boolean
+  }
+  externalDpsk?: {                    // External DPSK (RADIUS-generated PSKs)
+    enabled: boolean
+    authService?: {
+      id: string
+      name: string
+    }
   }
 }
 
