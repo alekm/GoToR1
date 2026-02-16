@@ -198,6 +198,19 @@ export default function Step7_GenerateConfigs({
       return
     }
 
+    // Validate RADIUS shared secrets are provided
+    const missingSecrets: string[] = []
+    for (const profile of generatedRadiusProfiles) {
+      const secrets = radiusSecrets[profile.szRadiusId]
+      if (!secrets?.primary) {
+        missingSecrets.push(profile.name)
+      }
+    }
+    if (missingSecrets.length > 0) {
+      setErrors([`RADIUS shared secrets required for: ${missingSecrets.join(', ')}`])
+      return
+    }
+
     setCreating(true)
     setErrors([])
 
@@ -207,6 +220,7 @@ export default function Step7_GenerateConfigs({
       // Phase 0: Create RADIUS Server Profiles (for AAA networks)
       setCurrentPhase('radius')
       const newRadiusMapping: Record<string, string> = {}
+      const radiusErrors: string[] = []
 
       for (const radiusProfile of generatedRadiusProfiles) {
         try {
@@ -236,8 +250,16 @@ export default function Step7_GenerateConfigs({
         } catch (err) {
           const errorMsg = err instanceof Error ? err.message : 'Unknown error'
           console.error(`✗ RADIUS profile "${radiusProfile.name}" creation failed:`, errorMsg)
-          setErrors((prev) => [...prev, `Failed to create RADIUS profile "${radiusProfile.name}": ${errorMsg}`])
+          radiusErrors.push(`Failed to create RADIUS profile "${radiusProfile.name}": ${errorMsg}`)
         }
+      }
+
+      // Stop if any RADIUS profiles failed to create
+      if (radiusErrors.length > 0) {
+        setErrors(radiusErrors)
+        setCurrentPhase('idle')
+        setCreating(false)
+        return
       }
 
       // Phase 1: Create WLANs
@@ -518,7 +540,7 @@ export default function Step7_GenerateConfigs({
                         <input
                           type="password"
                           disabled={creating || isCreated}
-                          placeholder="Optional"
+                          placeholder="Required"
                           value={secrets.primary || ''}
                           onChange={(e) => setRadiusSecrets(prev => ({
                             ...prev,
