@@ -390,6 +390,8 @@ export interface R1WifiNetwork {
   accountingServiceId?: string
   authServiceOrProfile?: { id: string }  // For linking to R1 RADIUS profiles
   accountingServiceOrProfile?: { id: string }  // For linking to R1 RADIUS profiles
+  // DPSK-specific fields
+  useExternalDpsk?: boolean  // If true, use external RADIUS for DPSK (requires linking after creation)
   // Additional fields
   description?: string
 }
@@ -466,11 +468,15 @@ export async function createWifiNetwork(
       wlanSecurity = 'WPAPersonal'
     }
 
+    // External DPSK: useDpskService=false (use RADIUS for PSK generation)
+    // Internal DPSK: useDpskService=true (use R1 DPSK service)
+    const useExternal = network.useExternalDpsk ?? false
+
     payload = {
       type: 'dpsk',
       name: network.name,
       description: network.description,
-      useDpskService: true,  // Use DPSK service (external RADIUS or internal)
+      useDpskService: !useExternal,  // false for external RADIUS, true for R1 DPSK service
       wlan: {
         ssid: network.ssid,
         enabled: network.enabled ?? true,
@@ -479,7 +485,11 @@ export async function createWifiNetwork(
       },
     }
     console.log('[R1 API] Payload (DPSK):', JSON.stringify(payload, null, 2))
-    console.log(`[R1 API] DPSK network - will use DPSK service for PSK generation`)
+    if (useExternal) {
+      console.log(`[R1 API] External DPSK - RADIUS server will generate PSKs (requires linking RADIUS profile after creation)`)
+    } else {
+      console.log(`[R1 API] Internal DPSK - R1 DPSK service will manage passphrases`)
+    }
   } else if (network.securityType === 'aaa') {
     payload = {
       type: 'aaa',
@@ -707,6 +717,32 @@ export async function listRadiusServerProfiles(
     msp
   )
   return response.list || []
+}
+
+/**
+ * Link RADIUS Server Profile to WiFi Network
+ * PUT /wifiNetworks/{wifiNetworkId}/radiusServerProfiles/{radiusId}
+ *
+ * Creates a relationship between a RADIUS server profile and a WiFi network.
+ * Used for External DPSK (eDPSK) networks where RADIUS server generates the PSKs.
+ */
+export async function linkRadiusProfileToWifiNetwork(
+  creds: RuckusOneCredentials,
+  wifiNetworkId: string,
+  radiusProfileId: string,
+  msp?: MspContext
+): Promise<void> {
+  console.log(`[R1 API] Linking RADIUS profile ${radiusProfileId} to WiFi network ${wifiNetworkId}`)
+
+  await apiRequest<unknown>(
+    creds,
+    'PUT',
+    `/wifiNetworks/${wifiNetworkId}/radiusServerProfiles/${radiusProfileId}`,
+    undefined, // No body needed - IDs are in path
+    msp
+  )
+
+  console.log(`[R1 API] Successfully linked RADIUS profile to WiFi network`)
 }
 
 // ============================================================================

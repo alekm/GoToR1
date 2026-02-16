@@ -11,6 +11,7 @@ import {
   createAPGroup,
   updateVenueRadioSettings,
   createRadiusServerProfile,
+  linkRadiusProfileToWifiNetwork,
   type R1WifiNetwork,
   type R1APGroup,
   type R1WifiSecurityType,
@@ -123,6 +124,7 @@ export default function Step7_GenerateConfigs({
         passphrase: passphrase, // Include passphrase from SmartZone (from either location)
         vlanId: szWlan.vlan?.accessVlan,
         enabled: true,
+        useExternalDpsk: szWlan.externalDpsk?.enabled, // Set true for External DPSK (RADIUS-generated PSKs)
         _zoneName: zone?.name,
         // Store SmartZone auth/accounting service IDs for later linkage to R1 RADIUS profiles
         // External DPSK uses authService from externalDpsk object, AAA uses authServiceOrProfile
@@ -221,6 +223,7 @@ export default function Step7_GenerateConfigs({
 
       // Phase 1: Create WLANs
       setCurrentPhase('wlans')
+      const newWlanMapping: Record<string, string> = {} // szWlanId -> r1WlanId
       for (const network of generatedNetworks) {
         try {
           // Link AAA networks to RADIUS profiles if available
@@ -255,13 +258,37 @@ export default function Step7_GenerateConfigs({
             hasPassphrase: !!network.passphrase,
             encryption: network.encryption,
             vlanId: network.vlanId,
+            useExternalDpsk: network.useExternalDpsk,
             hasAuthService: !!networkWithRadius.authServiceOrProfile,
             hasAccountingService: !!networkWithRadius.accountingServiceOrProfile,
           })
 
-          await createWifiNetwork(r1Credentials, networkWithRadius)
+          const result = await createWifiNetwork(r1Credentials, networkWithRadius)
           setCreatedWLANs((prev) => [...prev, network.szWlanId])
-          console.log(`✓ WLAN "${network.name}" created successfully`)
+          newWlanMapping[network.szWlanId] = result.id
+          console.log(`✓ WLAN "${network.name}" created successfully with ID: ${result.id}`)
+
+          // For External DPSK, link to RADIUS profile after creation
+          if (network.securityType === 'dpsk' && network.useExternalDpsk) {
+            // @ts-ignore - temporary access to private fields
+            const szAuthServiceId = network._szAuthServiceId
+
+            if (szAuthServiceId && newRadiusMapping[szAuthServiceId]) {
+              const radiusProfileId = newRadiusMapping[szAuthServiceId]
+              console.log(`  - Linking External DPSK WLAN to RADIUS profile ${radiusProfileId}`)
+
+              try {
+                await linkRadiusProfileToWifiNetwork(r1Credentials, result.id, radiusProfileId)
+                console.log(`  ✓ Successfully linked RADIUS profile to DPSK WLAN "${network.name}"`)
+              } catch (linkErr) {
+                const linkErrMsg = linkErr instanceof Error ? linkErr.message : 'Unknown error'
+                console.error(`  ✗ Failed to link RADIUS profile:`, linkErrMsg)
+                setErrors((prev) => [...prev, `Failed to link RADIUS profile to DPSK WLAN "${network.name}": ${linkErrMsg}`])
+              }
+            } else {
+              console.warn(`  ⚠️  External DPSK network "${network.name}" has no linked RADIUS auth service - may not function correctly`)
+            }
+          }
         } catch (err) {
           const errorMsg = err instanceof Error ? err.message : 'Unknown error'
           console.error(`✗ WLAN "${network.name}" creation failed:`, errorMsg)
@@ -550,12 +577,15 @@ export default function Step7_GenerateConfigs({
                         className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
                           net.securityType === 'aaa'
                             ? 'bg-blue-100 text-blue-800'
-                            : net.securityType === 'psk'
-                              ? 'bg-green-100 text-green-800'
-                              : 'bg-gray-100 text-gray-800'
+                            : net.securityType === 'dpsk'
+                              ? 'bg-purple-100 text-purple-800'
+                              : net.securityType === 'psk'
+                                ? 'bg-green-100 text-green-800'
+                                : 'bg-gray-100 text-gray-800'
                         }`}
                       >
                         {net.securityType}
+                        {net.securityType === 'dpsk' && net.useExternalDpsk && ' (ext)'}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{net.vlanId || '-'}</td>
