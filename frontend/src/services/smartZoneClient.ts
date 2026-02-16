@@ -469,52 +469,42 @@ export async function getRadiusServices(
 /**
  * Get global Authentication Service by ID
  * Used for External DPSK and Enterprise/AAA WLANs
+ *
+ * Endpoint: /wsg/api/public/v13_1/services/auth/radius/{id}
  */
 export async function getAuthenticationService(
   config: SmartZoneConfig,
   serviceId: string
 ): Promise<SZRadiusAuthService | null> {
   try {
-    // Try multiple possible endpoints for authentication services
-    const endpoints = [
-      `/wsg/api/public/${config.apiVersion}/services/auth/radius/${serviceId}`,
-      `/wsg/api/public/${config.apiVersion}/services/auth/${serviceId}`,
-      `/wsg/api/public/${config.apiVersion}/authServices/${serviceId}`,
-    ]
+    const endpoint = `/wsg/api/public/${config.apiVersion}/services/auth/radius/${serviceId}`
 
-    for (const endpoint of endpoints) {
-      try {
-        const svc = await apiRequest<any>(config, endpoint)
+    const svc = await apiRequest<any>(config, endpoint)
 
-        if (svc && svc.id) {
-          const service: SZRadiusAuthService = {
-            id: svc.id,
-            zoneId: '', // Global auth services don't belong to a specific zone
-            name: svc.name || `Auth-${svc.id}`,
-            description: svc.description,
-            type: svc.type === 'ACCOUNTING' ? 'Accounting' : 'Authentication',
-            primary: {
-              ip: svc.primary?.ip || svc.primaryServer?.ip,
-              port: svc.primary?.port || svc.primaryServer?.port || 1812,
-              sharedSecret: svc.primary?.sharedSecret || svc.primaryServer?.sharedSecret,
-            },
-            secondary: svc.secondary?.ip || svc.secondaryServer?.ip ? {
-              ip: svc.secondary?.ip || svc.secondaryServer?.ip,
-              port: svc.secondary?.port || svc.secondaryServer?.port || 1812,
-              sharedSecret: svc.secondary?.sharedSecret || svc.secondaryServer?.sharedSecret,
-            } : undefined,
-          }
-
-          console.log(`✓ Fetched Authentication Service "${service.name}" (${service.id}) from ${endpoint}`)
-          return service
-        }
-      } catch (err) {
-        // Try next endpoint
-        continue
+    if (svc && svc.id) {
+      const service: SZRadiusAuthService = {
+        id: svc.id,
+        zoneId: '', // Global auth services don't belong to a specific zone
+        name: svc.name || `Auth-${svc.id}`,
+        description: svc.description || '',
+        type: svc.type === 'ACCOUNTING' ? 'Accounting' : 'Authentication',
+        primary: {
+          ip: svc.primary.ip,
+          port: svc.primary.port || 1812,
+          sharedSecret: undefined, // SmartZone doesn't export shared secrets
+        },
+        secondary: svc.secondary ? {
+          ip: svc.secondary.ip,
+          port: svc.secondary.port || 1812,
+          sharedSecret: undefined,
+        } : undefined,
       }
+
+      console.log(`✓ Fetched Authentication Service "${service.name}" (IP: ${service.primary.ip}:${service.primary.port})`)
+      return service
     }
 
-    console.warn(`Failed to fetch Authentication Service ${serviceId} from any endpoint`)
+    console.warn(`Authentication Service ${serviceId} returned empty response`)
     return null
   } catch (err) {
     console.warn(`Failed to fetch Authentication Service ${serviceId}:`, err)
