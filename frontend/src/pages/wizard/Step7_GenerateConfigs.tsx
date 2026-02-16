@@ -50,6 +50,7 @@ export default function Step7_GenerateConfigs({
   const [apGroupMapping, setApGroupMapping] = useState<Record<string, string>>({}) // szApGroupId -> r1ApGroupId
   const [appliedRFSettings, setAppliedRFSettings] = useState<string[]>([]) // venue IDs
   const [errors, setErrors] = useState<string[]>([])
+  const [radiusSecrets, setRadiusSecrets] = useState<Record<string, { primary?: string; secondary?: string }>>({})
 
   useEffect(() => {
     // Generate configurations on mount
@@ -209,8 +210,26 @@ export default function Step7_GenerateConfigs({
 
       for (const radiusProfile of generatedRadiusProfiles) {
         try {
+          // Include user-provided shared secrets if available
+          const profileWithSecrets = { ...radiusProfile }
+          const secrets = radiusSecrets[radiusProfile.szRadiusId]
+
+          if (secrets?.primary) {
+            profileWithSecrets.primary = {
+              ...profileWithSecrets.primary,
+              sharedSecret: secrets.primary,
+            }
+          }
+
+          if (secrets?.secondary && profileWithSecrets.secondary) {
+            profileWithSecrets.secondary = {
+              ...profileWithSecrets.secondary,
+              sharedSecret: secrets.secondary,
+            }
+          }
+
           console.log(`Creating RADIUS profile "${radiusProfile.name}" (${radiusProfile.type})`)
-          const result = await createRadiusServerProfile(r1Credentials, radiusProfile)
+          const result = await createRadiusServerProfile(r1Credentials, profileWithSecrets)
           setCreatedRadiusProfiles((prev) => [...prev, radiusProfile.szRadiusId])
           newRadiusMapping[radiusProfile.szRadiusId] = result.id
           console.log(`✓ RADIUS profile "${radiusProfile.name}" created with ID: ${result.id}`)
@@ -472,16 +491,16 @@ export default function Step7_GenerateConfigs({
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Primary Server</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Primary Secret</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Secondary Server</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Shared Secret</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Secondary Secret</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {generatedRadiusProfiles.map((profile) => {
                   const isCreated = createdRadiusProfiles.includes(profile.szRadiusId)
-                  const hasSecret = !!profile.primary.sharedSecret
-                  const hasSecondarySecret = profile.secondary ? !!profile.secondary.sharedSecret : true
+                  const secrets = radiusSecrets[profile.szRadiusId] || {}
                   return (
                     <tr key={profile.szRadiusId}>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{profile.name}</td>
@@ -495,14 +514,43 @@ export default function Step7_GenerateConfigs({
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-mono">
                         {profile.primary.ip}:{profile.primary.port}
                       </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <input
+                          type="password"
+                          disabled={creating || isCreated}
+                          placeholder="Optional"
+                          value={secrets.primary || ''}
+                          onChange={(e) => setRadiusSecrets(prev => ({
+                            ...prev,
+                            [profile.szRadiusId]: {
+                              ...prev[profile.szRadiusId],
+                              primary: e.target.value
+                            }
+                          }))}
+                          className="w-32 px-2 py-1 border border-gray-300 rounded text-sm disabled:bg-gray-100"
+                        />
+                      </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-mono">
                         {profile.secondary ? `${profile.secondary.ip}:${profile.secondary.port}` : '-'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {hasSecret && hasSecondarySecret ? (
-                          <span className="text-green-600">✓ Present</span>
+                        {profile.secondary ? (
+                          <input
+                            type="password"
+                            disabled={creating || isCreated}
+                            placeholder="Optional"
+                            value={secrets.secondary || ''}
+                            onChange={(e) => setRadiusSecrets(prev => ({
+                              ...prev,
+                              [profile.szRadiusId]: {
+                                ...prev[profile.szRadiusId],
+                                secondary: e.target.value
+                              }
+                            }))}
+                            className="w-32 px-2 py-1 border border-gray-300 rounded text-sm disabled:bg-gray-100"
+                          />
                         ) : (
-                          <span className="text-yellow-600">⚠ Manual config needed</span>
+                          <span className="text-gray-400">-</span>
                         )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -522,17 +570,21 @@ export default function Step7_GenerateConfigs({
           </div>
 
           {/* RADIUS Shared Secret Warning */}
-          {generatedRadiusProfiles.some(p => !p.primary.sharedSecret || (p.secondary && !p.secondary.sharedSecret)) && (
-            <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
-              <div className="flex items-start space-x-2">
-                <AlertCircle size={16} className="text-yellow-600 flex-shrink-0 mt-0.5" />
-                <p className="text-xs text-yellow-800">
-                  <strong>Note:</strong> Some RADIUS profiles are missing shared secrets (SmartZone did not export them).
-                  After migration, you must manually configure shared secrets in RUCKUS One for AAA/802.1X networks to function.
+          <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
+            <div className="flex items-start space-x-2">
+              <AlertCircle size={16} className="text-blue-600 flex-shrink-0 mt-0.5" />
+              <div className="text-xs text-blue-800">
+                <p className="font-semibold mb-1">RADIUS Shared Secrets</p>
+                <p>
+                  SmartZone does not export shared secrets (security policy). You can optionally enter them above
+                  to configure during migration, or leave blank and configure manually in RUCKUS One portal later.
+                </p>
+                <p className="mt-1 text-blue-700">
+                  <strong>Note:</strong> RADIUS authentication will not work until shared secrets are configured.
                 </p>
               </div>
             </div>
-          )}
+          </div>
         </div>
       )}
 
