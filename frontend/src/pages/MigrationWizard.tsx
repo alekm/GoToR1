@@ -10,8 +10,6 @@ import { useMigrationProject } from '../hooks/useMigrationProjects'
 import { migrationStateManager } from '../services/migrationStateManager'
 import Step2_ConnectSZ from './wizard/Step2_ConnectSZ'
 import Step3_ExtractData from './wizard/Step3_ExtractData'
-import Step4_ReviewExtractedData from './wizard/Step4_ReviewExtractedData'
-import Step5_DataValidation from './wizard/Step5_DataValidation'
 import Step6_CreateVenues from './wizard/Step6_CreateVenues'
 import Step7_GenerateConfigs from './wizard/Step7_GenerateConfigs'
 import Step8_UploadAPs from './wizard/Step8_UploadAPs'
@@ -73,50 +71,18 @@ export default function MigrationWizard() {
 
   const handleExtractComplete = async (data: SmartZoneData) => {
     try {
-      // Save extracted data
+      // Save extracted data and proceed directly to venue creation
       await migrationStateManager.saveExtractedData(projectId, data)
       await migrationStateManager.updateProject(projectId, {
         extractedData: data,
-        currentStep: 'review',
+        currentStep: 'venues',
         status: 'extracted',
       })
       await refresh() // Refresh project data
-      setCurrentStep('review')
+      setCurrentStep('venues')
     } catch (err) {
       console.error('Failed to save extracted data:', err)
       alert('Failed to save extracted data. Please try again.')
-    }
-  }
-
-  const handleReviewComplete = async (data: SmartZoneData) => {
-    try {
-      // Save updated data (with any additional switches)
-      await migrationStateManager.saveExtractedData(projectId, data)
-      await migrationStateManager.updateProject(projectId, {
-        extractedData: data,
-        currentStep: 'validate',
-        status: 'validating',
-      })
-      await refresh()
-      setCurrentStep('validate')
-    } catch (err) {
-      console.error('Failed to save reviewed data:', err)
-      alert('Failed to save data. Please try again.')
-    }
-  }
-
-  const handleValidationComplete = async () => {
-    try {
-      // Update project to next step
-      await migrationStateManager.updateProject(projectId, {
-        currentStep: 'venues',
-        status: 'ready',
-      })
-      await refresh()
-      setCurrentStep('venues')
-    } catch (err) {
-      console.error('Failed to proceed to venue creation:', err)
-      alert('Failed to proceed. Please try again.')
     }
   }
 
@@ -192,10 +158,6 @@ export default function MigrationWizard() {
     } else if (currentStep === 'configs') {
       setCurrentStep('venues')
     } else if (currentStep === 'venues') {
-      setCurrentStep('validate')
-    } else if (currentStep === 'validate') {
-      setCurrentStep('review')
-    } else if (currentStep === 'review') {
       setCurrentStep('extract')
     } else if (currentStep === 'extract') {
       setCurrentStep('connect')
@@ -206,7 +168,7 @@ export default function MigrationWizard() {
 
   return (
     <div>
-      {/* Wizard Stepper - Placeholder for now */}
+      {/* Wizard Stepper */}
       <div className="bg-white border-b">
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex items-center space-x-4 text-sm">
@@ -222,32 +184,24 @@ export default function MigrationWizard() {
               3. Extract
             </span>
             <span className="text-gray-300">→</span>
-            <span className={currentStep === 'review' ? 'font-bold' : 'text-gray-500'}>
-              4. Review
-            </span>
-            <span className="text-gray-300">→</span>
-            <span className={currentStep === 'validate' ? 'font-bold' : 'text-gray-500'}>
-              5. Validate
-            </span>
-            <span className="text-gray-300">→</span>
             <span className={currentStep === 'venues' ? 'font-bold' : 'text-gray-500'}>
-              6. Venues
+              4. Venues
             </span>
             <span className="text-gray-300">→</span>
             <span className={currentStep === 'configs' ? 'font-bold' : 'text-gray-500'}>
-              7. Configure
+              5. Review & Deploy
             </span>
             <span className="text-gray-300">→</span>
             <span className={currentStep === 'migrate-aps' ? 'font-bold' : 'text-gray-500'}>
-              8. APs
+              6. APs
             </span>
             <span className="text-gray-300">→</span>
             <span className={currentStep === 'migrate-switches' ? 'font-bold' : 'text-gray-500'}>
-              9. Switches
+              7. Switches
             </span>
             <span className="text-gray-300">→</span>
             <span className={currentStep === 'verify' ? 'font-bold' : 'text-gray-500'}>
-              10. Verify
+              8. Verify
             </span>
           </div>
         </div>
@@ -268,24 +222,6 @@ export default function MigrationWizard() {
           projectId={projectId}
           config={project.smartZoneConfig}
           onComplete={handleExtractComplete}
-          onBack={handleBack}
-        />
-      )}
-
-      {currentStep === 'review' && project.extractedData && (
-        <Step4_ReviewExtractedData
-          projectId={projectId}
-          extractedData={project.extractedData}
-          onComplete={handleReviewComplete}
-          onBack={handleBack}
-        />
-      )}
-
-      {currentStep === 'validate' && project.extractedData && (
-        <Step5_DataValidation
-          projectId={projectId}
-          extractedData={project.extractedData}
-          onComplete={handleValidationComplete}
           onBack={handleBack}
         />
       )}

@@ -44,18 +44,18 @@ npx tsc --noEmit  # Type check without building
 
 ### Multi-Phase Migration Workflow
 
-The application implements a **10-step wizard workflow** across 5 phases:
+The application implements an **8-step wizard workflow** across 4 phases:
 
 1. **Data Gathering** (Steps 1-3): ✅ Project setup → SmartZone connection → Extract zones/WLANs/APs/switches
-2. **Validation** (Steps 4-5): ✅ Review data → Validate for conflicts/duplicates
-3. **R1 Configuration** (Steps 6-7): 🔄 Create venues/ECs → Generate WLAN/AP Group configs
-4. **Hardware Migration** (Steps 8-9): ⏭️ Upload APs → Upload switches
-5. **Post-Migration** (Step 10): ⏭️ Verification & reporting
+2. **R1 Configuration** (Steps 4-5): ✅ Create venues/ECs → Review & Deploy configs (WLANs, AP Groups, RF, RADIUS)
+3. **Hardware Migration** (Steps 6-7): ⏭️ Upload APs → Upload switches
+4. **Post-Migration** (Step 8): ⏭️ Verification & reporting
 
 **Current Implementation Status:**
-- ✅ Steps 1-5: Fully implemented and tested
-- ✅ Step 6: Venue creation wired up, needs R1 credentials configured
-- ⏭️ Steps 7-10: Not yet implemented (show "coming soon" alert)
+- ✅ Steps 1-5: Fully implemented with External DPSK (eDPSK) support
+- ⏭️ Steps 6-8: Not yet implemented (show "coming soon" alert)
+
+**Note:** Steps 4 and 5 (Review/Validate) were removed to eliminate redundancy. Step 5 (Review & Deploy) now shows smart-detected security types and validates before deployment.
 
 ### State Management Architecture
 

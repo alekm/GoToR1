@@ -9,20 +9,17 @@ export type MigrationStep =
   | 'setup'           // Step 1: Project setup
   | 'connect'         // Step 2: Connect to SmartZone
   | 'extract'         // Step 3: Extract data
-  | 'review'          // Step 4: Review extracted data
-  | 'validate'        // Step 5: Data validation
-  | 'venues'          // Step 6: Create venues/ECs
-  | 'configs'         // Step 7: Generate configs
-  | 'migrate-aps'     // Step 8: Migrate APs
-  | 'migrate-switches'// Step 9: Migrate switches
-  | 'verify'          // Step 10: Verify results
+  | 'venues'          // Step 4: Create venues/ECs
+  | 'configs'         // Step 5: Review & Deploy configs
+  | 'migrate-aps'     // Step 6: Migrate APs
+  | 'migrate-switches'// Step 7: Migrate switches
+  | 'verify'          // Step 8: Verify results
   | 'complete'
 
 export type MigrationStatus =
   | 'draft'           // Project created, not started
   | 'extracting'      // Currently extracting from SmartZone
   | 'extracted'       // Data extracted successfully
-  | 'validating'      // Running validation
   | 'ready'           // Ready to migrate
   | 'migrating'       // Migration in progress
   | 'completed'       // Successfully completed

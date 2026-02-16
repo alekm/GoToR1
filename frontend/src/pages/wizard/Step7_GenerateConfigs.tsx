@@ -1,7 +1,7 @@
 /**
- * Step 7: Generate & Apply Configurations
+ * Step 5: Review & Deploy Configurations
  *
- * Create WLANs and AP Groups in RUCKUS One based on SmartZone data
+ * Review transformed SmartZone data and deploy WLANs, AP Groups, and RF settings to RUCKUS One
  */
 
 import { useState, useEffect } from 'react'
@@ -499,9 +499,9 @@ export default function Step7_GenerateConfigs({
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Generate & Apply Configurations</h1>
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">Review & Deploy Configurations</h1>
         <p className="text-gray-600">
-          Review and create WiFi networks and AP groups in RUCKUS One
+          Review transformed SmartZone data and deploy WLANs, AP Groups, and RF settings to RUCKUS One
         </p>
       </div>
 
