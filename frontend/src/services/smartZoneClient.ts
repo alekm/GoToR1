@@ -423,7 +423,7 @@ export async function getSwitches(config: SmartZoneConfig): Promise<SZSwitch[]> 
 }
 
 /**
- * Get RADIUS authentication/accounting services for a zone
+ * Get RADIUS authentication/accounting services for a zone (Zone AAA)
  */
 export async function getRadiusServices(
   config: SmartZoneConfig,
@@ -458,10 +458,67 @@ export async function getRadiusServices(
       } : undefined,
     }))
 
+    console.log(`Fetched ${services.length} Zone AAA RADIUS services for zone ${zoneId}`)
     return services
   } catch (err) {
-    console.warn(`Failed to fetch RADIUS services for zone ${zoneId}:`, err)
+    console.warn(`Failed to fetch Zone AAA RADIUS services for zone ${zoneId}:`, err)
     return []
+  }
+}
+
+/**
+ * Get global Authentication Service by ID
+ * Used for External DPSK and Enterprise/AAA WLANs
+ */
+export async function getAuthenticationService(
+  config: SmartZoneConfig,
+  serviceId: string
+): Promise<SZRadiusAuthService | null> {
+  try {
+    // Try multiple possible endpoints for authentication services
+    const endpoints = [
+      `/wsg/api/public/${config.apiVersion}/services/auth/radius/${serviceId}`,
+      `/wsg/api/public/${config.apiVersion}/services/auth/${serviceId}`,
+      `/wsg/api/public/${config.apiVersion}/authServices/${serviceId}`,
+    ]
+
+    for (const endpoint of endpoints) {
+      try {
+        const svc = await apiRequest<any>(config, endpoint)
+
+        if (svc && svc.id) {
+          const service: SZRadiusAuthService = {
+            id: svc.id,
+            zoneId: '', // Global auth services don't belong to a specific zone
+            name: svc.name || `Auth-${svc.id}`,
+            description: svc.description,
+            type: svc.type === 'ACCOUNTING' ? 'Accounting' : 'Authentication',
+            primary: {
+              ip: svc.primary?.ip || svc.primaryServer?.ip,
+              port: svc.primary?.port || svc.primaryServer?.port || 1812,
+              sharedSecret: svc.primary?.sharedSecret || svc.primaryServer?.sharedSecret,
+            },
+            secondary: svc.secondary?.ip || svc.secondaryServer?.ip ? {
+              ip: svc.secondary?.ip || svc.secondaryServer?.ip,
+              port: svc.secondary?.port || svc.secondaryServer?.port || 1812,
+              sharedSecret: svc.secondary?.sharedSecret || svc.secondaryServer?.sharedSecret,
+            } : undefined,
+          }
+
+          console.log(`✓ Fetched Authentication Service "${service.name}" (${service.id}) from ${endpoint}`)
+          return service
+        }
+      } catch (err) {
+        // Try next endpoint
+        continue
+      }
+    }
+
+    console.warn(`Failed to fetch Authentication Service ${serviceId} from any endpoint`)
+    return null
+  } catch (err) {
+    console.warn(`Failed to fetch Authentication Service ${serviceId}:`, err)
+    return null
   }
 }
 
@@ -527,10 +584,50 @@ export async function extractData(
   onProgress?.('aps', data.zones.length, data.zones.length)
   onProgress?.('radiusServices', data.zones.length, data.zones.length)
 
+  // Fetch global Authentication Services referenced by WLANs (for External DPSK and AAA)
+  console.log('Checking WLANs for Authentication Service references...')
+  const authServiceIds = new Set<string>()
+
+  for (const wlan of data.wlans) {
+    // External DPSK auth service
+    if (wlan.externalDpsk?.authService?.id) {
+      authServiceIds.add(wlan.externalDpsk.authService.id)
+    }
+    // AAA/802.1X auth service
+    if (wlan.authServiceOrProfile?.id) {
+      authServiceIds.add(wlan.authServiceOrProfile.id)
+    }
+    // Accounting service
+    if (wlan.accountingServiceOrProfile?.id) {
+      authServiceIds.add(wlan.accountingServiceOrProfile.id)
+    }
+  }
+
+  console.log(`Found ${authServiceIds.size} unique Authentication Service references`)
+
+  // Fetch each authentication service
+  for (const serviceId of authServiceIds) {
+    // Skip if already fetched (might be in Zone AAA RADIUS list)
+    if (data.radiusServices.some(svc => svc.id === serviceId)) {
+      console.log(`  - Auth Service ${serviceId} already in RADIUS services list`)
+      continue
+    }
+
+    const service = await getAuthenticationService(config, serviceId)
+    if (service) {
+      data.radiusServices.push(service)
+      console.log(`  + Added Authentication Service "${service.name}" to RADIUS services`)
+    } else {
+      console.warn(`  ✗ Could not fetch Authentication Service ${serviceId}`)
+    }
+  }
+
   data.totalItems.wlans = data.wlans.length
   data.totalItems.apGroups = data.apGroups.length
   data.totalItems.aps = data.accessPoints.length
   data.totalItems.radiusServices = data.radiusServices.length
+
+  console.log(`\nTotal RADIUS services extracted: ${data.radiusServices.length}`)
 
   // Fetch switches (SmartZone-managed only)
   onProgress?.('switches', 0, 1)
