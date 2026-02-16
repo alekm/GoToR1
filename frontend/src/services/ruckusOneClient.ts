@@ -745,6 +745,36 @@ export async function linkRadiusProfileToWifiNetwork(
   console.log(`[R1 API] Successfully linked RADIUS profile to WiFi network`)
 }
 
+/**
+ * Enable RADIUS Proxy Mode for WiFi Network
+ * PUT /wifiNetworks/{wifiNetworkId}/radiusServerProfileSettings
+ *
+ * Enables R1 to act as a proxy between APs and external RADIUS servers.
+ * Used for External DPSK networks where R1 proxies auth requests to RADIUS (like SmartZone's "SZ Authenticator" mode).
+ */
+export async function enableRadiusProxyMode(
+  creds: RuckusOneCredentials,
+  wifiNetworkId: string,
+  enableAuth: boolean = true,
+  enableAccounting: boolean = false,
+  msp?: MspContext
+): Promise<void> {
+  console.log(`[R1 API] Enabling RADIUS proxy mode for WiFi network ${wifiNetworkId}`)
+
+  await apiRequest<unknown>(
+    creds,
+    'PUT',
+    `/wifiNetworks/${wifiNetworkId}/radiusServerProfileSettings`,
+    {
+      enableAuthProxy: enableAuth,
+      enableAccountingProxy: enableAccounting,
+    },
+    msp
+  )
+
+  console.log(`[R1 API] Successfully enabled RADIUS proxy mode (auth=${enableAuth}, accounting=${enableAccounting})`)
+}
+
 // ============================================================================
 // ACCESS POINT MANAGEMENT
 // Based on wifi-offline-17.3.3.118-public-openapi3.json

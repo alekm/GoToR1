@@ -12,6 +12,7 @@ import {
   updateVenueRadioSettings,
   createRadiusServerProfile,
   linkRadiusProfileToWifiNetwork,
+  enableRadiusProxyMode,
   type R1WifiNetwork,
   type R1APGroup,
   type R1WifiSecurityType,
@@ -321,9 +322,14 @@ export default function Step7_GenerateConfigs({
               try {
                 await linkRadiusProfileToWifiNetwork(r1Credentials, result.id, radiusProfileId)
                 console.log(`  ✓ Successfully linked RADIUS profile to DPSK WLAN "${network.name}"`)
+
+                // Enable R1 as proxy (like SmartZone's "SZ Authenticator" mode)
+                console.log(`  - Enabling RADIUS proxy mode for External DPSK network`)
+                await enableRadiusProxyMode(r1Credentials, result.id, true, false)
+                console.log(`  ✓ Successfully enabled RADIUS proxy mode`)
               } catch (linkErr) {
                 const linkErrMsg = linkErr instanceof Error ? linkErr.message : 'Unknown error'
-                console.error(`  ✗ Failed to link RADIUS profile:`, linkErrMsg)
+                console.error(`  ✗ Failed to link RADIUS profile or enable proxy:`, linkErrMsg)
                 setErrors((prev) => [...prev, `Failed to link RADIUS profile to DPSK WLAN "${network.name}": ${linkErrMsg}`])
               }
             } else {
