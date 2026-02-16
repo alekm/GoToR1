@@ -91,11 +91,12 @@ async function authenticate(config: SmartZoneConfig): Promise<string> {
   if (existingSession) {
     // Validate existing session
     try {
-      const testUrl = buildUrl(config, `/wsg/api/public/${config.apiVersion}/session`)
+      // Use v10_0 for session validation (same as login)
+      const testUrl = buildUrl(config, `/wsg/api/public/v10_0/session`)
       const testResponse = await fetch(testUrl, {
         method: 'GET',
         headers: {
-          'Cookie': `JSESSIONID=${existingSession}`,
+          'X-Session-ID': existingSession,
         },
       })
 
@@ -182,22 +183,21 @@ async function apiRequest<T>(
   })
 
   if (!response.ok) {
+    // Read body once (Fetch allows only one consumption) - text first, then parse if JSON
+    const text = await response.text()
     let errorDetail = ''
     try {
-      errorDetail = JSON.stringify(await response.json())
+      const data = JSON.parse(text)
+      errorDetail = JSON.stringify(data)
     } catch {
-      try {
-        errorDetail = await response.text()
-      } catch {
-        errorDetail = 'Unable to parse error response'
-      }
+      errorDetail = text || 'Unable to parse error response'
     }
     throw new Error(
       `API request failed: ${response.status} ${response.statusText}${errorDetail ? ` - ${errorDetail}` : ''}`
     )
   }
 
-  return response.json()
+  return JSON.parse(await response.text()) as T
 }
 
 /**
@@ -435,9 +435,10 @@ export async function getRadiusServices(
       totalCount?: number
     }
 
+    // Zone AAA RADIUS uses v13_1 (resource endpoint), not config.apiVersion
     const response = await apiRequest<RadiusServiceResponse>(
       config,
-      `/wsg/api/public/${config.apiVersion}/rkszones/${zoneId}/aaa/radius`
+      `/wsg/api/public/v13_1/rkszones/${encodeURIComponent(zoneId)}/aaa/radius`
     )
 
     const services: SZRadiusAuthService[] = (response.list || []).map((svc: any) => ({
@@ -477,11 +478,12 @@ export async function getAuthenticationService(
   serviceId: string
 ): Promise<SZRadiusAuthService | null> {
   try {
-    const endpoint = `/wsg/api/public/${config.apiVersion}/services/auth/radius/${serviceId}`
+    // RADIUS services endpoint only exists in v13_1, regardless of detected version
+    const endpoint = `/wsg/api/public/v13_1/services/auth/radius/${serviceId}`
 
     const svc = await apiRequest<any>(config, endpoint)
 
-    if (svc && svc.id) {
+    if (svc?.id && svc?.primary?.ip) {
       const service: SZRadiusAuthService = {
         id: svc.id,
         zoneId: '', // Global auth services don't belong to a specific zone
@@ -490,12 +492,12 @@ export async function getAuthenticationService(
         type: svc.type === 'ACCOUNTING' ? 'Accounting' : 'Authentication',
         primary: {
           ip: svc.primary.ip,
-          port: svc.primary.port || 1812,
+          port: svc.primary.port ?? 1812,
           sharedSecret: undefined, // SmartZone doesn't export shared secrets
         },
-        secondary: svc.secondary ? {
+        secondary: svc.secondary?.ip ? {
           ip: svc.secondary.ip,
-          port: svc.secondary.port || 1812,
+          port: svc.secondary.port ?? 1812,
           sharedSecret: undefined,
         } : undefined,
       }
@@ -636,10 +638,11 @@ export async function logout(config: SmartZoneConfig): Promise<void> {
   try {
     const sessionId = getCookie(sessionKey(config))
     if (sessionId) {
-      await fetch(buildUrl(config, `/wsg/api/public/${config.apiVersion}/session`), {
+      // Session endpoint is always v10_0 (same as login)
+      await fetch(buildUrl(config, '/wsg/api/public/v10_0/session'), {
         method: 'DELETE',
         headers: {
-          'Cookie': `JSESSIONID=${sessionId}`,
+          'X-Session-ID': sessionId,
         },
       })
     }
