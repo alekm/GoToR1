@@ -117,6 +117,15 @@ GET /wifiNetworks - List all WLANs
 POST /venues/{venueId}/apGroups - Create AP group
 GET /venues/{venueId}/apGroups - List AP groups
 
+// WLAN Activation (CRITICAL - WLANs don't broadcast until activated on venues)
+PUT /venues/{venueId}/wifiNetworks/{wifiNetworkId} - Activate WLAN on venue
+  Body: {
+    venueId, networkId, isAllApGroups: true/false,
+    apGroups: [ids], allApGroupsRadio: "Both"/"2.4-GHz"/"5-GHz",
+    allApGroupsRadioTypes: ["2.4-GHz", "5-GHz"],
+    scheduler: {type: "ALWAYS_ON"}
+  }
+
 // Access Points
 POST /venues/aps - Batch upload APs (50 per batch)
 PUT /venues/{venueId}/apGroups/{apGroupId}/aps - Assign APs to group
@@ -468,3 +477,4 @@ npx netlify dev
 - **WLAN list endpoint**: Does not return security type/encryption - requires individual detail fetch
 - **Hotspot 2.0**: Limited RUCKUS One support, requires manual configuration review
 - **AAA/802.1X**: Requires pre-configured RADIUS servers in RUCKUS One (cannot be migrated automatically)
+- **WLAN Activation Required**: Creating a WLAN in R1 does NOT automatically broadcast it. WLANs must be explicitly activated on venues using `PUT /venues/{venueId}/wifiNetworks/{wifiNetworkId}` before they will appear on APs. This is different from SmartZone where WLANs in a zone are automatically available to APs in that zone.

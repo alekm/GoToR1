@@ -13,6 +13,7 @@ import {
   createRadiusServerProfile,
   linkRadiusProfileToWifiNetwork,
   enableRadiusProxyMode,
+  activateWifiNetworkOnVenue,
   type R1WifiNetwork,
   type R1APGroup,
   type R1WifiSecurityType,
@@ -52,6 +53,7 @@ export default function Step7_GenerateConfigs({
   const [appliedRFSettings, setAppliedRFSettings] = useState<string[]>([]) // venue IDs
   const [errors, setErrors] = useState<string[]>([])
   const [radiusSecrets, setRadiusSecrets] = useState<Record<string, { primary?: string; secondary?: string }>>({})
+  const [useProxyMode, setUseProxyMode] = useState<Record<string, boolean>>({}) // szWlanId -> useProxy
 
   useEffect(() => {
     // Generate configurations on mount
@@ -323,10 +325,15 @@ export default function Step7_GenerateConfigs({
                 await linkRadiusProfileToWifiNetwork(r1Credentials, result.id, radiusProfileId)
                 console.log(`  ✓ Successfully linked RADIUS profile to DPSK WLAN "${network.name}"`)
 
-                // Enable R1 as proxy (like SmartZone's "SZ Authenticator" mode)
-                console.log(`  - Enabling RADIUS proxy mode for External DPSK network`)
-                await enableRadiusProxyMode(r1Credentials, result.id, true, false)
-                console.log(`  ✓ Successfully enabled RADIUS proxy mode`)
+                // Enable R1 as proxy if user selected (like SmartZone's "SZ Authenticator" mode)
+                const enableProxy = useProxyMode[network.szWlanId] ?? false
+                if (enableProxy) {
+                  console.log(`  - Enabling RADIUS proxy mode (R1 proxies auth to RADIUS)`)
+                  await enableRadiusProxyMode(r1Credentials, result.id, true, false)
+                  console.log(`  ✓ Successfully enabled RADIUS proxy mode`)
+                } else {
+                  console.log(`  - Proxy mode disabled (APs authenticate directly to RADIUS)`)
+                }
               } catch (linkErr) {
                 const linkErrMsg = linkErr instanceof Error ? linkErr.message : 'Unknown error'
                 console.error(`  ✗ Failed to link RADIUS profile or enable proxy:`, linkErrMsg)
@@ -355,6 +362,74 @@ export default function Step7_GenerateConfigs({
         } catch (err) {
           const errorMsg = err instanceof Error ? err.message : 'Unknown error'
           setErrors((prev) => [...prev, `Failed to create AP Group "${apGroup.name}": ${errorMsg}`])
+        }
+      }
+
+      // Phase 2.5: Activate WLANs on Venues
+      // WLANs must be activated on venues to actually broadcast
+      // Use SmartZone AP Group WLAN member data to activate only on specific AP groups
+      console.log('\n=== Activating WLANs on Venues ===')
+      for (const zone of extractedData.zones) {
+        const venueId = venueMapping[zone.id]
+        if (!venueId) {
+          console.warn(`  ⚠️  No venue mapping for zone ${zone.name} - skipping WLAN activation`)
+          continue
+        }
+
+        // Find all WLANs for this zone
+        const wlansForZone = generatedNetworks.filter(net => net._zoneName === zone.name)
+        console.log(`\nVenue "${zone.name}": Activating ${wlansForZone.length} WLANs`)
+
+        for (const network of wlansForZone) {
+          const r1WlanId = newWlanMapping[network.szWlanId]
+          if (!r1WlanId) {
+            console.warn(`  - WLAN "${network.name}" was not created - skipping activation`)
+            continue
+          }
+
+          // Find which AP Groups in SmartZone have this WLAN as a member
+          const apGroupsWithThisWlan = extractedData.apGroups.filter(apg =>
+            apg.zoneId === zone.id &&
+            apg.wlans?.some(w => w.id === network.szWlanId)
+          )
+
+          try {
+            if (apGroupsWithThisWlan.length > 0) {
+              // Activate on specific AP groups (matching SmartZone configuration)
+              const r1ApGroupConfigs = apGroupsWithThisWlan
+                .map(szApg => {
+                  const r1ApGroupId = newApGroupMapping[szApg.id]
+                  if (!r1ApGroupId) {
+                    console.warn(`  ⚠️  AP Group "${szApg.name}" not found in R1 mapping`)
+                    return null
+                  }
+                  return { apGroupId: r1ApGroupId, radio: 'Both' as const }
+                })
+                .filter((cfg): cfg is { apGroupId: string; radio: 'Both' } => cfg !== null)
+
+              if (r1ApGroupConfigs.length > 0) {
+                await activateWifiNetworkOnVenue(r1Credentials, venueId, r1WlanId, {
+                  isAllApGroups: false,
+                  apGroups: r1ApGroupConfigs,
+                  radio: 'Both',
+                })
+                console.log(`  ✓ Activated WLAN "${network.name}" on ${r1ApGroupConfigs.length} AP groups`)
+              } else {
+                console.warn(`  - No valid R1 AP groups found for WLAN "${network.name}" - skipping`)
+              }
+            } else {
+              // No specific AP group membership - activate on all AP groups in venue
+              await activateWifiNetworkOnVenue(r1Credentials, venueId, r1WlanId, {
+                isAllApGroups: true,
+                radio: 'Both',
+              })
+              console.log(`  ✓ Activated WLAN "${network.name}" on all AP groups (no specific membership in SZ)`)
+            }
+          } catch (err) {
+            const errorMsg = err instanceof Error ? err.message : 'Unknown error'
+            console.error(`  ✗ Failed to activate WLAN "${network.name}" on venue:`, errorMsg)
+            setErrors((prev) => [...prev, `Failed to activate WLAN "${network.name}" on venue "${zone.name}": ${errorMsg}`])
+          }
         }
       }
 
@@ -633,6 +708,18 @@ export default function Step7_GenerateConfigs({
           )}
         </div>
 
+        {generatedNetworks.some(n => n.securityType === 'dpsk' && n.useExternalDpsk) && (
+          <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
+            <p className="text-sm text-blue-800">
+              <strong>R1 Proxy Mode:</strong> For External DPSK networks, you can choose whether RUCKUS One acts as a proxy between APs and RADIUS.
+              <br />
+              • <strong>OFF (default, recommended):</strong> APs authenticate directly to RADIUS — more resilient, continues working if R1 is down
+              <br />
+              • <strong>ON:</strong> APs → R1 → RADIUS — adds cloud dependency (like SmartZone's "SZ Authenticator" mode)
+            </p>
+          </div>
+        )}
+
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
@@ -641,6 +728,7 @@ export default function Step7_GenerateConfigs({
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">SSID</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Security</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">VLAN</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">R1 Proxy</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Zone</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
               </tr>
@@ -669,6 +757,29 @@ export default function Step7_GenerateConfigs({
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{net.vlanId || '-'}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {net.securityType === 'dpsk' && net.useExternalDpsk ? (
+                        <label className="flex items-center space-x-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={useProxyMode[net.szWlanId] ?? false}
+                            onChange={(e) => {
+                              setUseProxyMode((prev) => ({
+                                ...prev,
+                                [net.szWlanId]: e.target.checked,
+                              }))
+                            }}
+                            disabled={creating || isCreated}
+                            className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 disabled:opacity-50"
+                          />
+                          <span className="text-xs text-gray-600">
+                            {useProxyMode[net.szWlanId] ? 'ON' : 'OFF'}
+                          </span>
+                        </label>
+                      ) : (
+                        <span className="text-gray-400 text-xs">N/A</span>
+                      )}
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{net._zoneName}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {isCreated ? (

@@ -775,6 +775,85 @@ export async function enableRadiusProxyMode(
   console.log(`[R1 API] Successfully enabled RADIUS proxy mode (auth=${enableAuth}, accounting=${enableAccounting})`)
 }
 
+/**
+ * Activate WiFi Network on Venue
+ * PUT /venues/{venueId}/wifiNetworks/{wifiNetworkId}
+ *
+ * Activates a WiFi network on a venue (makes it broadcast on APs).
+ * Can be assigned to all AP groups or specific AP groups within the venue.
+ *
+ * @param options.apGroups - Array of AP group configs with IDs and radio settings
+ * @param options.isAllApGroups - True to activate on all AP groups in venue (default: true)
+ * @param options.radio - Which radios to enable when isAllApGroups=true (default: "Both")
+ * @param options.scheduler - Scheduler config (default: always on)
+ */
+export async function activateWifiNetworkOnVenue(
+  creds: RuckusOneCredentials,
+  venueId: string,
+  wifiNetworkId: string,
+  options?: {
+    apGroups?: Array<{
+      apGroupId: string
+      radio?: 'Both' | '2.4-GHz' | '5-GHz'
+    }>
+    isAllApGroups?: boolean
+    radio?: 'Both' | '2.4-GHz' | '5-GHz'
+    scheduler?: { type: 'ALWAYS_ON' | 'SCHEDULED' }
+  },
+  msp?: MspContext
+): Promise<void> {
+  const isAllApGroups = options?.isAllApGroups ?? true
+  const radio = options?.radio ?? 'Both'
+  const scheduler = options?.scheduler ?? { type: 'ALWAYS_ON' }
+
+  // Map radio selection to radio types array
+  const mapRadioToTypes = (r: 'Both' | '2.4-GHz' | '5-GHz'): string[] => {
+    if (r === 'Both') return ['2.4-GHz', '5-GHz']
+    return [r]
+  }
+
+  let payload: any = {
+    venueId,
+    networkId: wifiNetworkId,
+    isAllApGroups,
+    scheduler,
+  }
+
+  if (isAllApGroups) {
+    // Activate on all AP groups in venue
+    payload.apGroups = []
+    payload.allApGroupsRadio = radio
+    payload.allApGroupsRadioTypes = mapRadioToTypes(radio)
+  } else {
+    // Activate on specific AP groups
+    const apGroupConfigs = (options?.apGroups ?? []).map(ag => ({
+      apGroupId: ag.apGroupId,
+      radio: ag.radio ?? 'Both',
+      radioTypes: mapRadioToTypes(ag.radio ?? 'Both'),
+    }))
+
+    payload.apGroups = apGroupConfigs
+    payload.allApGroupsRadio = radio  // Still needed even for specific groups
+    payload.allApGroupsRadioTypes = mapRadioToTypes(radio)
+    payload.dual5gEnabled = true  // Support dual 5GHz radios
+    payload.tripleBandEnabled = false  // Wi-Fi 6E tri-band support
+    payload.isEnforced = false
+  }
+
+  console.log(`[R1 API] Activating WiFi network ${wifiNetworkId} on venue ${venueId}`)
+  console.log(`[R1 API] Config: isAllApGroups=${isAllApGroups}, apGroups=${options?.apGroups?.length ?? 0}`)
+
+  await apiRequest<unknown>(
+    creds,
+    'PUT',
+    `/venues/${venueId}/wifiNetworks/${wifiNetworkId}`,
+    payload,
+    msp
+  )
+
+  console.log(`[R1 API] Successfully activated WiFi network on venue`)
+}
+
 // ============================================================================
 // ACCESS POINT MANAGEMENT
 // Based on wifi-offline-17.3.3.118-public-openapi3.json
