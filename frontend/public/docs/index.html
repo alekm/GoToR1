@@ -35,6 +35,28 @@
   --header-h:  52px;
 }
 
+[data-theme="light"] {
+  --void:      #f8fafc;
+  --base:      #ffffff;
+  --surface:   #f1f5f9;
+  --surface2:  #e8edf5;
+  --surface3:  #dde4ef;
+  --rim:       #cbd5e1;
+  --rim2:      #94a3b8;
+  --ink:       #0f172a;
+  --ink2:      #475569;
+  --ink3:      #94a3b8;
+  --spark:     #0284c7;
+  --spark-bg:  #e0f2fe;
+  --get:       #16a34a;   --get-bg:    #f0fdf4;
+  --post:      #0369a1;   --post-bg:   #eff6ff;
+  --put:       #b45309;   --put-bg:    #fffbeb;
+  --delete:    #be123c;   --delete-bg: #fff1f2;
+  --patch:     #7c3aed;   --patch-bg:  #faf5ff;
+  --head:      #64748b;   --head-bg:   #f8fafc;
+  --r2xx: #16a34a; --r3xx: #0369a1; --r4xx: #b45309; --r5xx: #be123c;
+}
+
 html, body {
   height: 100%;
   background: var(--base);
@@ -782,6 +804,25 @@ mark {
 @media (max-width: 900px) {
   .ep-detail-inner { grid-template-columns: 1fr; }
 }
+
+/* ── Theme toggle ── */
+#theme-toggle {
+  background: var(--surface);
+  border: 1px solid var(--rim);
+  border-radius: 5px;
+  color: var(--ink2);
+  cursor: pointer;
+  font-size: 14px;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background .15s, border-color .15s, color .15s;
+  line-height: 1;
+}
+#theme-toggle:hover { background: var(--surface2); border-color: var(--rim2); color: var(--ink); }
 </style>
 </head>
 <body>
@@ -807,6 +848,7 @@ mark {
         <span>RUCKUS One API</span>
       </div>
       <div class="topbar-ct" id="topbar-ct"></div>
+      <button id="theme-toggle" onclick="toggleTheme()" title="Toggle light/dark mode">🌙</button>
     </div>
     <div id="content">
       <div id="view-overview"></div>
@@ -817,6 +859,25 @@ mark {
 </div>
 
 <script>
+// ─────────────────────────── Theme ───────────────────────────
+(function() {
+  const saved = localStorage.getItem('r1docs-theme');
+  if (saved === 'light') document.documentElement.setAttribute('data-theme', 'light');
+})();
+
+function toggleTheme() {
+  const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+  if (isLight) {
+    document.documentElement.removeAttribute('data-theme');
+    localStorage.setItem('r1docs-theme', 'dark');
+    document.getElementById('theme-toggle').textContent = '🌙';
+  } else {
+    document.documentElement.setAttribute('data-theme', 'light');
+    localStorage.setItem('r1docs-theme', 'light');
+    document.getElementById('theme-toggle').textContent = '☀️';
+  }
+}
+
 // ─────────────────────────── State ───────────────────────────
 const state = {
   selectedGroup: null,
@@ -843,6 +904,9 @@ document.addEventListener('DOMContentLoaded', () => {
     return;
   }
   DATA = window.R1_API_DATA;
+  if (document.documentElement.getAttribute('data-theme') === 'light') {
+    document.getElementById('theme-toggle').textContent = '☀️';
+  }
   buildFlatIndex();
   buildSidebar();
   showOverview();
