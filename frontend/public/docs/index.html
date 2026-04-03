@@ -1,0 +1,1374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RUCKUS One API Reference</title>
+<script src="api-nav-data.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Exo+2:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&family=Source+Sans+3:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --void:      #07090f;
+  --base:      #0c1220;
+  --surface:   #101c2e;
+  --surface2:  #162336;
+  --surface3:  #1c2d45;
+  --rim:       #1e2f48;
+  --rim2:      #28415e;
+  --ink:       #c0d4e8;
+  --ink2:      #6a8aaa;
+  --ink3:      #3d5a7a;
+  --spark:     #4db8e8;
+  --spark-bg:  #0d2b42;
+  --get:       #52c97e;   --get-bg:    #0a2318;
+  --post:      #4aa9e0;   --post-bg:   #0a1f30;
+  --put:       #e8a533;   --put-bg:    #2a1c08;
+  --delete:    #e05870;   --delete-bg: #2a0d14;
+  --patch:     #a07de8;   --patch-bg:  #1c1230;
+  --head:      #6a8aaa;   --head-bg:   #141e2c;
+  --r2xx: #52c97e; --r3xx: #4aa9e0; --r4xx: #e8a533; --r5xx: #e05870;
+  --sidebar-w: 295px;
+  --header-h:  52px;
+}
+
+html, body {
+  height: 100%;
+  background: var(--base);
+  color: var(--ink);
+  font-family: 'Source Sans 3', sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  overflow: hidden;
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--rim2); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--ink3); }
+
+/* ─────────────────────────── LAYOUT ─────────────────────────── */
+
+#app { display: flex; height: 100vh; }
+
+/* ── Sidebar ── */
+#sidebar {
+  width: var(--sidebar-w);
+  min-width: var(--sidebar-w);
+  background: var(--void);
+  border-right: 1px solid var(--rim);
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  position: relative;
+  z-index: 10;
+}
+
+.sb-header {
+  padding: 18px 16px 14px;
+  border-bottom: 1px solid var(--rim);
+  flex-shrink: 0;
+}
+
+.sb-brand {
+  font-family: 'Exo 2', sans-serif;
+  font-weight: 800;
+  font-size: 15px;
+  letter-spacing: 0.08em;
+  color: var(--spark);
+  text-transform: uppercase;
+  line-height: 1;
+  margin-bottom: 3px;
+}
+
+.sb-brand span {
+  color: var(--ink2);
+  font-weight: 500;
+}
+
+.sb-tagline {
+  font-size: 11px;
+  color: var(--ink3);
+  letter-spacing: 0.04em;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.sb-search {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--rim);
+  flex-shrink: 0;
+  position: relative;
+}
+
+.sb-search input {
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--rim);
+  border-radius: 5px;
+  color: var(--ink);
+  font-family: 'Source Sans 3', sans-serif;
+  font-size: 13px;
+  padding: 7px 28px 7px 10px;
+  outline: none;
+  transition: border-color .15s, box-shadow .15s;
+}
+
+.sb-search input::placeholder { color: var(--ink3); }
+.sb-search input:focus {
+  border-color: var(--spark);
+  box-shadow: 0 0 0 2px var(--spark-bg);
+}
+
+.sb-search-clear {
+  position: absolute;
+  right: 20px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--ink3);
+  cursor: pointer;
+  font-size: 12px;
+  display: none;
+  user-select: none;
+  transition: color .15s;
+}
+.sb-search-clear:hover { color: var(--ink); }
+.sb-search-clear.visible { display: block; }
+
+.sb-nav {
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px 0 12px;
+}
+
+.nav-group { border-bottom: 1px solid var(--rim); }
+
+.nav-group-hdr {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 14px 9px 12px;
+  cursor: pointer;
+  user-select: none;
+  transition: background .12s;
+  position: relative;
+}
+.nav-group-hdr:hover { background: var(--surface); }
+.nav-group-hdr.active { background: var(--surface2); }
+
+.nav-arrow {
+  font-size: 9px;
+  color: var(--ink3);
+  transition: transform .2s;
+  flex-shrink: 0;
+  width: 10px;
+  text-align: center;
+}
+.nav-group.open .nav-arrow { transform: rotate(90deg); }
+
+.nav-group-name {
+  flex: 1;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink2);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  line-height: 1.2;
+  font-family: 'Exo 2', sans-serif;
+}
+.nav-group-hdr.active .nav-group-name { color: var(--spark); }
+
+.nav-group-ct {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--ink3);
+  background: var(--surface3);
+  padding: 1px 5px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.nav-tags { display: none; padding: 2px 0 6px; }
+.nav-group.open .nav-tags { display: block; }
+
+.nav-tag {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 14px 6px 26px;
+  cursor: pointer;
+  font-size: 12.5px;
+  color: var(--ink2);
+  transition: background .1s, color .1s;
+  gap: 8px;
+}
+.nav-tag:hover { background: var(--surface); color: var(--ink); }
+.nav-tag.active { background: var(--spark-bg); color: var(--spark); }
+
+.nav-tag-name { flex: 1; line-height: 1.3; }
+
+.nav-tag-ct {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--ink3);
+  flex-shrink: 0;
+}
+.nav-tag.active .nav-tag-ct { color: var(--spark); opacity: .6; }
+
+.sb-footer {
+  border-top: 1px solid var(--rim);
+  padding: 10px 14px;
+  flex-shrink: 0;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--ink3);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.sb-footer-stat { display: flex; justify-content: space-between; }
+.sb-footer-stat span:last-child { color: var(--ink2); }
+
+/* ── Main content ── */
+#main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 0;
+}
+
+#topbar {
+  height: var(--header-h);
+  border-bottom: 1px solid var(--rim);
+  background: var(--void);
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.topbar-breadcrumb {
+  font-size: 13px;
+  color: var(--ink2);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+.topbar-breadcrumb .crumb-sep { color: var(--ink3); }
+.topbar-breadcrumb .crumb-active { color: var(--ink); font-weight: 500; }
+
+.topbar-ct {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--ink3);
+  flex-shrink: 0;
+}
+
+#content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0;
+}
+
+/* ─────────────────────────── OVERVIEW ─────────────────────────── */
+
+#view-overview {
+  padding: 32px 32px 48px;
+  max-width: 1100px;
+}
+
+.overview-hero {
+  margin-bottom: 32px;
+}
+
+.overview-title {
+  font-family: 'Exo 2', sans-serif;
+  font-size: 32px;
+  font-weight: 800;
+  color: var(--ink);
+  letter-spacing: -0.01em;
+  line-height: 1.1;
+  margin-bottom: 8px;
+}
+.overview-title span { color: var(--spark); }
+
+.overview-sub {
+  color: var(--ink2);
+  font-size: 15px;
+  margin-bottom: 20px;
+}
+
+.servers-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 28px;
+}
+
+.server-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--surface);
+  border: 1px solid var(--rim);
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 12px;
+}
+.server-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--get);
+  flex-shrink: 0;
+}
+.server-desc { color: var(--ink3); font-size: 11px; }
+.server-url { font-family: 'JetBrains Mono', monospace; color: var(--ink); }
+
+.stats-row {
+  display: flex;
+  gap: 14px;
+  margin-bottom: 36px;
+  flex-wrap: wrap;
+}
+
+.stat-card {
+  background: var(--surface);
+  border: 1px solid var(--rim);
+  border-radius: 8px;
+  padding: 14px 20px;
+  min-width: 120px;
+}
+.stat-value {
+  font-family: 'Exo 2', sans-serif;
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--spark);
+  line-height: 1;
+  margin-bottom: 3px;
+}
+.stat-label { font-size: 11px; color: var(--ink3); text-transform: uppercase; letter-spacing: 0.06em; }
+
+.overview-section-title {
+  font-family: 'Exo 2', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink3);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 14px;
+}
+
+.group-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 10px;
+}
+
+.group-card {
+  background: var(--surface);
+  border: 1px solid var(--rim);
+  border-radius: 8px;
+  padding: 14px 16px;
+  cursor: pointer;
+  transition: background .15s, border-color .15s, transform .1s;
+}
+.group-card:hover {
+  background: var(--surface2);
+  border-color: var(--rim2);
+  transform: translateY(-1px);
+}
+
+.group-card-name {
+  font-family: 'Exo 2', sans-serif;
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--ink);
+  margin-bottom: 6px;
+  line-height: 1.3;
+}
+
+.group-card-meta {
+  display: flex;
+  gap: 8px;
+  font-size: 11px;
+  font-family: 'JetBrains Mono', monospace;
+}
+.group-card-eps { color: var(--spark); }
+.group-card-tags { color: var(--ink3); }
+
+.group-card-methods {
+  display: flex;
+  gap: 4px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+/* ─────────────────────────── ENDPOINT LIST ─────────────────────────── */
+
+#view-endpoints { display: none; }
+
+.ep-group-section { border-bottom: 1px solid var(--rim); }
+
+.ep-group-header {
+  padding: 14px 20px 10px;
+  background: var(--void);
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  border-bottom: 1px solid var(--rim);
+}
+
+.ep-group-title {
+  font-family: 'Exo 2', sans-serif;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--ink);
+  margin-bottom: 2px;
+}
+
+.ep-group-desc {
+  font-size: 12.5px;
+  color: var(--ink2);
+  max-width: 700px;
+}
+
+.ep-tag-section { padding: 0; }
+
+.ep-tag-header {
+  padding: 10px 20px 8px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--rim);
+}
+
+.ep-tag-name {
+  font-family: 'Exo 2', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink2);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.ep-tag-ct {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--ink3);
+  background: var(--surface3);
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+
+.ep-tag-desc {
+  font-size: 12px;
+  color: var(--ink3);
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Endpoint card ── */
+.ep-card {
+  border-bottom: 1px solid var(--rim);
+  transition: background .1s;
+}
+.ep-card:hover { background: var(--surface); }
+.ep-card.expanded { background: var(--surface); }
+
+.ep-summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 20px;
+  cursor: pointer;
+  min-height: 44px;
+}
+
+.method-badge {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 7px;
+  border-radius: 4px;
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+  min-width: 58px;
+  text-align: center;
+}
+.method-GET    { color: var(--get);    background: var(--get-bg);    border: 1px solid color-mix(in srgb, var(--get) 30%, transparent); }
+.method-POST   { color: var(--post);   background: var(--post-bg);   border: 1px solid color-mix(in srgb, var(--post) 30%, transparent); }
+.method-PUT    { color: var(--put);    background: var(--put-bg);    border: 1px solid color-mix(in srgb, var(--put) 30%, transparent); }
+.method-DELETE { color: var(--delete); background: var(--delete-bg); border: 1px solid color-mix(in srgb, var(--delete) 30%, transparent); }
+.method-PATCH  { color: var(--patch);  background: var(--patch-bg);  border: 1px solid color-mix(in srgb, var(--patch) 30%, transparent); }
+.method-HEAD, .method-OPTIONS { color: var(--head); background: var(--head-bg); border: 1px solid var(--rim); }
+
+.ep-path {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12.5px;
+  color: var(--ink);
+  flex-shrink: 0;
+  max-width: 420px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ep-path .path-param { color: var(--spark); }
+
+.ep-title {
+  font-size: 13px;
+  color: var(--ink2);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ep-chevron {
+  color: var(--ink3);
+  font-size: 10px;
+  flex-shrink: 0;
+  transition: transform .2s;
+}
+.ep-card.expanded .ep-chevron { transform: rotate(180deg); }
+
+/* ── Endpoint detail ── */
+.ep-detail {
+  display: none;
+  padding: 0 20px 18px 20px;
+  border-top: 1px solid var(--rim);
+  background: var(--surface2);
+}
+.ep-card.expanded .ep-detail { display: block; }
+
+.ep-detail-inner {
+  padding-top: 14px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.ep-detail-full { grid-column: 1 / -1; }
+
+.ep-desc {
+  font-size: 13px;
+  color: var(--ink2);
+  line-height: 1.6;
+  grid-column: 1 / -1;
+  max-width: 780px;
+}
+
+.detail-label {
+  font-family: 'Exo 2', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ink3);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 8px;
+}
+
+.ep-op-id {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11.5px;
+  color: var(--ink2);
+  background: var(--surface3);
+  border: 1px solid var(--rim);
+  padding: 4px 8px;
+  border-radius: 4px;
+  display: inline-block;
+}
+
+/* Params table */
+.params-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+.params-table th {
+  text-align: left;
+  font-weight: 600;
+  color: var(--ink3);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 4px 8px 6px;
+  border-bottom: 1px solid var(--rim);
+}
+.params-table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--rim);
+  vertical-align: top;
+}
+.params-table tr:last-child td { border-bottom: none; }
+.params-table code {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11.5px;
+  color: var(--spark);
+  background: var(--spark-bg);
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+.param-in {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10.5px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: var(--surface3);
+  color: var(--ink2);
+}
+.param-in.path   { background: color-mix(in srgb, var(--put) 15%, transparent); color: var(--put); }
+.param-in.query  { background: color-mix(in srgb, var(--post) 15%, transparent); color: var(--post); }
+.param-in.header { background: color-mix(in srgb, var(--patch) 15%, transparent); color: var(--patch); }
+.param-req { color: var(--delete); font-weight: 600; font-size: 12px; }
+.param-type {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--ink3);
+}
+.param-desc { color: var(--ink2); font-size: 12px; }
+
+/* Response badges */
+.resp-row { display: flex; flex-wrap: wrap; gap: 6px; }
+
+.resp-badge {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: default;
+  position: relative;
+}
+.resp-badge .resp-desc {
+  font-family: 'Source Sans 3', sans-serif;
+  font-size: 11px;
+  font-weight: 400;
+  color: inherit;
+  opacity: .75;
+  max-width: 200px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.resp-2xx { background: color-mix(in srgb, var(--r2xx) 15%, transparent); color: var(--r2xx); border: 1px solid color-mix(in srgb, var(--r2xx) 30%, transparent); }
+.resp-3xx { background: color-mix(in srgb, var(--r3xx) 15%, transparent); color: var(--r3xx); border: 1px solid color-mix(in srgb, var(--r3xx) 30%, transparent); }
+.resp-4xx { background: color-mix(in srgb, var(--r4xx) 15%, transparent); color: var(--r4xx); border: 1px solid color-mix(in srgb, var(--r4xx) 30%, transparent); }
+.resp-5xx { background: color-mix(in srgb, var(--r5xx) 15%, transparent); color: var(--r5xx); border: 1px solid color-mix(in srgb, var(--r5xx) 30%, transparent); }
+
+.body-ref {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  color: var(--patch);
+  background: var(--patch-bg);
+  border: 1px solid color-mix(in srgb, var(--patch) 25%, transparent);
+  padding: 3px 8px;
+  border-radius: 4px;
+  display: inline-block;
+}
+
+/* ─────────────────────────── SEARCH VIEW ─────────────────────────── */
+#view-search { display: none; padding: 0; }
+
+.search-header {
+  padding: 14px 20px 10px;
+  background: var(--void);
+  border-bottom: 1px solid var(--rim);
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+.search-header h2 {
+  font-family: 'Exo 2', sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink2);
+}
+.search-header h2 span { color: var(--ink); }
+
+.search-results { }
+
+.search-result-group-label {
+  padding: 8px 20px 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink3);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-family: 'Exo 2', sans-serif;
+  background: var(--surface);
+  border-bottom: 1px solid var(--rim);
+}
+
+.no-results {
+  padding: 48px 20px;
+  text-align: center;
+  color: var(--ink3);
+  font-size: 14px;
+}
+
+/* ── Method filter bar ── */
+.method-filter-bar {
+  display: flex;
+  gap: 6px;
+  padding: 8px 20px;
+  background: var(--void);
+  border-bottom: 1px solid var(--rim);
+  flex-shrink: 0;
+}
+.mf-btn {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--rim);
+  background: transparent;
+  color: var(--ink3);
+  cursor: pointer;
+  transition: all .15s;
+}
+.mf-btn.active-get    { color: var(--get);    background: var(--get-bg);    border-color: color-mix(in srgb, var(--get) 40%, transparent); }
+.mf-btn.active-post   { color: var(--post);   background: var(--post-bg);   border-color: color-mix(in srgb, var(--post) 40%, transparent); }
+.mf-btn.active-put    { color: var(--put);    background: var(--put-bg);    border-color: color-mix(in srgb, var(--put) 40%, transparent); }
+.mf-btn.active-delete { color: var(--delete); background: var(--delete-bg); border-color: color-mix(in srgb, var(--delete) 40%, transparent); }
+.mf-btn.active-patch  { color: var(--patch);  background: var(--patch-bg);  border-color: color-mix(in srgb, var(--patch) 40%, transparent); }
+.mf-btn:not([class*="active"]):hover { color: var(--ink); border-color: var(--rim2); }
+
+.method-filter-label { font-size: 11px; color: var(--ink3); margin-right: 4px; align-self: center; font-family: 'Exo 2', sans-serif; text-transform: uppercase; letter-spacing: .05em; }
+
+/* ── Highlight ── */
+mark {
+  background: color-mix(in srgb, var(--spark) 30%, transparent);
+  color: var(--spark);
+  border-radius: 2px;
+  padding: 0 1px;
+}
+
+/* ── Transition fade ── */
+.view-transition {
+  animation: fadeIn .15s ease;
+}
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Empty state ── */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
+  color: var(--ink3);
+  gap: 8px;
+}
+.empty-state-icon { font-size: 32px; }
+.empty-state-msg { font-size: 13px; }
+
+/* ── Responsive ── */
+@media (max-width: 900px) {
+  .ep-detail-inner { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <!-- ── Sidebar ── -->
+  <aside id="sidebar">
+    <div class="sb-header">
+      <div class="sb-brand">RUCKUS ONE <span>API</span></div>
+      <div class="sb-tagline">REST Reference Navigator</div>
+    </div>
+    <div class="sb-search">
+      <input id="search-input" type="text" placeholder="Search endpoints, paths…" autocomplete="off" spellcheck="false">
+      <span class="sb-search-clear" id="search-clear" onclick="clearSearch()">✕</span>
+    </div>
+    <nav class="sb-nav" id="nav-tree"></nav>
+    <div class="sb-footer" id="sb-footer"></div>
+  </aside>
+
+  <!-- ── Main ── -->
+  <div id="main">
+    <div id="topbar">
+      <div class="topbar-breadcrumb" id="breadcrumb">
+        <span>RUCKUS One API</span>
+      </div>
+      <div class="topbar-ct" id="topbar-ct"></div>
+    </div>
+    <div id="content">
+      <div id="view-overview"></div>
+      <div id="view-endpoints"></div>
+      <div id="view-search"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─────────────────────────── State ───────────────────────────
+const state = {
+  selectedGroup: null,
+  selectedTag: null,
+  searchQuery: '',
+  methodFilters: new Set(),
+  expandedCards: new Set(),
+  epCardData: [],   // flat list for search
+};
+
+let DATA = null;
+
+// ─────────────────────────── Boot ───────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  if (!window.R1_API_DATA) {
+    document.getElementById('view-overview').innerHTML =
+      `<div style="padding:48px 32px;color:var(--delete)">
+        <b>api-nav-data.js not found.</b><br>
+        Run <code style="font-family:monospace;background:var(--surface);padding:2px 6px;border-radius:3px">python3 generate.py</code> first,
+        then serve this directory:<br>
+        <code style="font-family:monospace;background:var(--surface);padding:2px 6px;border-radius:3px">python3 -m http.server 8080</code>
+      </div>`;
+    document.getElementById('view-overview').style.display = 'block';
+    return;
+  }
+  DATA = window.R1_API_DATA;
+  buildFlatIndex();
+  buildSidebar();
+  showOverview();
+  document.getElementById('search-input').addEventListener('input', onSearch);
+  document.getElementById('search-input').addEventListener('keydown', e => {
+    if (e.key === 'Escape') clearSearch();
+  });
+});
+
+// ─────────────────────────── Flat index ───────────────────────────
+function buildFlatIndex() {
+  state.epCardData = [];
+  for (const grp of DATA.tagGroups) {
+    for (const tag of grp.tags) {
+      for (const ep of tag.endpoints) {
+        state.epCardData.push({ ...ep, _group: grp.name, _tag: tag.name });
+      }
+    }
+  }
+}
+
+// ─────────────────────────── Sidebar ───────────────────────────
+function buildSidebar() {
+  const tree = document.getElementById('nav-tree');
+  tree.innerHTML = '';
+
+  // All endpoints link
+  const allLink = document.createElement('div');
+  allLink.className = 'nav-tag';
+  allLink.style.cssText = 'padding-left:14px;border-bottom:1px solid var(--rim);margin-bottom:4px;font-weight:600;color:var(--ink2)';
+  allLink.id = 'nav-all';
+  allLink.innerHTML = `<span class="nav-tag-name">All Endpoints</span><span class="nav-tag-ct">${DATA.stats.endpoints}</span>`;
+  allLink.onclick = () => { clearSearch(); showOverview(); };
+  tree.appendChild(allLink);
+
+  for (const grp of DATA.tagGroups) {
+    const totalEps = grp.tags.reduce((s, t) => s + t.endpoints.length, 0);
+    const el = document.createElement('div');
+    el.className = 'nav-group';
+    el.dataset.group = grp.name;
+
+    const hdr = document.createElement('div');
+    hdr.className = 'nav-group-hdr';
+    hdr.innerHTML = `
+      <span class="nav-arrow">▶</span>
+      <span class="nav-group-name">${esc(grp.name)}</span>
+      <span class="nav-group-ct">${totalEps}</span>`;
+    hdr.onclick = () => toggleNavGroup(grp.name, el, hdr);
+    el.appendChild(hdr);
+
+    const tagsDiv = document.createElement('div');
+    tagsDiv.className = 'nav-tags';
+    for (const tag of grp.tags) {
+      const t = document.createElement('div');
+      t.className = 'nav-tag';
+      t.dataset.group = grp.name;
+      t.dataset.tag = tag.name;
+      t.innerHTML = `<span class="nav-tag-name">${esc(tag.name)}</span><span class="nav-tag-ct">${tag.endpoints.length}</span>`;
+      t.onclick = () => selectTag(grp.name, tag.name);
+      tagsDiv.appendChild(t);
+    }
+    el.appendChild(tagsDiv);
+    tree.appendChild(el);
+  }
+
+  // Footer stats
+  document.getElementById('sb-footer').innerHTML = `
+    <div class="sb-footer-stat"><span>Endpoints</span><span>${DATA.stats.endpoints}</span></div>
+    <div class="sb-footer-stat"><span>Tag Groups</span><span>${DATA.stats.groups}</span></div>
+    <div class="sb-footer-stat"><span>Tags</span><span>${DATA.stats.tags}</span></div>
+    <div class="sb-footer-stat"><span>Version</span><span>${DATA.version}</span></div>`;
+}
+
+function toggleNavGroup(groupName, el, hdr) {
+  const wasOpen = el.classList.contains('open');
+  // Close all groups
+  document.querySelectorAll('.nav-group').forEach(g => g.classList.remove('open'));
+  document.querySelectorAll('.nav-group-hdr').forEach(h => h.classList.remove('active'));
+  if (!wasOpen) {
+    el.classList.add('open');
+    hdr.classList.add('active');
+    // Show the group view
+    selectGroup(groupName);
+  } else {
+    showOverview();
+  }
+}
+
+function setActiveNavTag(groupName, tagName) {
+  document.querySelectorAll('.nav-tag').forEach(t => t.classList.remove('active'));
+  if (tagName) {
+    const el = document.querySelector(`.nav-tag[data-group="${CSS.escape(groupName)}"][data-tag="${CSS.escape(tagName)}"]`);
+    if (el) el.classList.add('active');
+  }
+  document.getElementById('nav-all').classList.remove('active');
+}
+
+// ─────────────────────────── Views ───────────────────────────
+
+function showOverview() {
+  state.selectedGroup = null;
+  state.selectedTag = null;
+  document.querySelectorAll('.nav-tag').forEach(t => t.classList.remove('active'));
+  document.getElementById('nav-all').classList.add('active');
+  setBreadcrumb(['RUCKUS One API']);
+  setTopbarCt('');
+
+  const ov = document.getElementById('view-overview');
+  const ev = document.getElementById('view-endpoints');
+  const sv = document.getElementById('view-search');
+  ov.style.display = 'block'; ev.style.display = 'none'; sv.style.display = 'none';
+  ov.classList.add('view-transition');
+
+  const methodCounts = {};
+  for (const ep of state.epCardData) {
+    methodCounts[ep.method] = (methodCounts[ep.method] || 0) + 1;
+  }
+
+  ov.innerHTML = `
+    <div id="view-overview-inner" style="padding:32px 32px 48px;max-width:1100px">
+      <div class="overview-hero">
+        <div class="overview-title">RUCKUS One <span>API</span> Reference</div>
+        <div class="overview-sub">Cloud management platform REST API — ${DATA.stats.endpoints} endpoints across ${DATA.stats.groups} service groups</div>
+        <div class="servers-row">${DATA.servers.map(s => `
+          <div class="server-pill">
+            <div class="server-dot"></div>
+            <div>
+              <div class="server-url">${esc(s.url)}</div>
+              <div class="server-desc">${esc(s.description || '')}</div>
+            </div>
+          </div>`).join('')}
+        </div>
+        <div class="stats-row">
+          ${[
+            ['Endpoints', DATA.stats.endpoints],
+            ['Paths', DATA.stats.paths],
+            ['Service Groups', DATA.stats.groups],
+            ['Tags', DATA.stats.tags],
+          ].map(([l, v]) => `<div class="stat-card"><div class="stat-value">${v}</div><div class="stat-label">${l}</div></div>`).join('')}
+          ${Object.entries(methodCounts).sort().map(([m, c]) =>
+            `<div class="stat-card"><div class="stat-value" style="color:var(--${m.toLowerCase()})">${c}</div><div class="stat-label">${m}</div></div>`
+          ).join('')}
+        </div>
+      </div>
+      <div class="overview-section-title">Service Groups</div>
+      <div class="group-grid">
+        ${DATA.tagGroups.map(grp => {
+          const totalEps = grp.tags.reduce((s, t) => s + t.endpoints.length, 0);
+          const methods = new Set(grp.tags.flatMap(t => t.endpoints.map(e => e.method)));
+          return `<div class="group-card" onclick="selectGroup('${esc(grp.name).replace(/'/g,"\\'")}')">
+            <div class="group-card-name">${esc(grp.name)}</div>
+            <div class="group-card-meta">
+              <span class="group-card-eps">${totalEps} endpoints</span>
+              <span class="group-card-tags">${grp.tags.length} tags</span>
+            </div>
+            <div class="group-card-methods">
+              ${[...methods].sort().map(m => `<span class="method-badge method-${m}" style="font-size:10px;padding:2px 5px;min-width:0">${m}</span>`).join('')}
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>`;
+}
+
+function selectGroup(groupName) {
+  const grp = DATA.tagGroups.find(g => g.name === groupName);
+  if (!grp) return;
+  state.selectedGroup = groupName;
+  state.selectedTag = null;
+  state.searchQuery = '';
+  document.getElementById('search-input').value = '';
+  document.getElementById('search-clear').classList.remove('visible');
+
+  setActiveNavTag(groupName, null);
+  // Open nav group
+  document.querySelectorAll('.nav-group').forEach(g => g.classList.remove('open'));
+  document.querySelectorAll('.nav-group-hdr').forEach(h => h.classList.remove('active'));
+  const navEl = document.querySelector(`.nav-group[data-group="${CSS.escape(groupName)}"]`);
+  if (navEl) {
+    navEl.classList.add('open');
+    navEl.querySelector('.nav-group-hdr').classList.add('active');
+  }
+
+  const totalEps = grp.tags.reduce((s, t) => s + t.endpoints.length, 0);
+  setBreadcrumb([groupName]);
+  setTopbarCt(`${totalEps} endpoints`);
+
+  showEndpointView(grp.tags.map(tag => ({ group: grp.name, tag })));
+}
+
+function selectTag(groupName, tagName) {
+  const grp = DATA.tagGroups.find(g => g.name === groupName);
+  const tag = grp && grp.tags.find(t => t.name === tagName);
+  if (!tag) return;
+  state.selectedGroup = groupName;
+  state.selectedTag = tagName;
+  state.searchQuery = '';
+  document.getElementById('search-input').value = '';
+  document.getElementById('search-clear').classList.remove('visible');
+
+  setActiveNavTag(groupName, tagName);
+  setBreadcrumb([groupName, tagName]);
+  setTopbarCt(`${tag.endpoints.length} endpoints`);
+
+  showEndpointView([{ group: groupName, tag }]);
+}
+
+function showEndpointView(sections) {
+  document.getElementById('view-overview').style.display = 'none';
+  document.getElementById('view-search').style.display = 'none';
+
+  const ev = document.getElementById('view-endpoints');
+  ev.style.display = 'block';
+  ev.classList.add('view-transition');
+
+  ev.innerHTML = '';
+  state.expandedCards.clear();
+
+  let globalIdx = 0;
+
+  // Method filter bar
+  const allMethods = new Set(sections.flatMap(s => s.tag.endpoints.map(e => e.method)));
+  if (allMethods.size > 1) {
+    const bar = document.createElement('div');
+    bar.className = 'method-filter-bar';
+    bar.id = 'method-filter-bar';
+    bar.innerHTML = `<span class="method-filter-label">Filter:</span>` +
+      [...allMethods].sort().map(m => {
+        const active = state.methodFilters.has(m) ? `active-${m.toLowerCase()}` : '';
+        return `<button class="mf-btn ${active}" data-method="${m}" onclick="toggleMethodFilter('${m}')">${m}</button>`;
+      }).join('');
+    ev.appendChild(bar);
+  }
+
+  for (const { group, tag } of sections) {
+    const section = document.createElement('div');
+    section.className = 'ep-group-section';
+    section.id = `section-${slugify(group)}-${slugify(tag.name)}`;
+
+    let eps = tag.endpoints;
+    if (state.methodFilters.size > 0) {
+      eps = eps.filter(e => state.methodFilters.has(e.method));
+    }
+
+    const tagHdr = document.createElement('div');
+    tagHdr.className = 'ep-tag-section';
+
+    // Show group header only if multiple groups visible
+    const showGroupHeader = sections.some(s => s.group !== sections[0].group)
+                         || sections.length > 1;
+
+    tagHdr.innerHTML = `
+      <div class="ep-tag-header">
+        <span class="ep-tag-name">${esc(tag.name)}</span>
+        <span class="ep-tag-ct">${eps.length}</span>
+        ${tag.description ? `<span class="ep-tag-desc">${esc(tag.description)}</span>` : ''}
+      </div>`;
+    section.appendChild(tagHdr);
+
+    for (const ep of eps) {
+      const idx = globalIdx++;
+      section.appendChild(buildEpCard(ep, idx));
+    }
+
+    if (eps.length === 0) {
+      const empty = document.createElement('div');
+      empty.style.cssText = 'padding:16px 20px;color:var(--ink3);font-size:13px';
+      empty.textContent = 'No endpoints match current filters.';
+      section.appendChild(empty);
+    }
+
+    ev.appendChild(section);
+  }
+}
+
+function buildEpCard(ep, idx) {
+  const card = document.createElement('div');
+  card.className = 'ep-card';
+  card.id = `ep-${idx}`;
+
+  const pathHtml = ep.path.replace(/\{([^}]+)\}/g, '<span class="path-param">{$1}</span>');
+
+  card.innerHTML = `
+    <div class="ep-summary" onclick="toggleCard(${idx})">
+      <span class="method-badge method-${ep.method}">${ep.method}</span>
+      <span class="ep-path">${pathHtml}</span>
+      <span class="ep-title">${esc(ep.summary || ep.operationId || '')}</span>
+      <span class="ep-chevron">▼</span>
+    </div>
+    <div class="ep-detail">${buildDetailHtml(ep)}</div>`;
+
+  return card;
+}
+
+function buildDetailHtml(ep) {
+  let html = '<div class="ep-detail-inner">';
+
+  if (ep.description) {
+    html += `<div class="ep-desc ep-detail-full">${esc(ep.description)}</div>`;
+  }
+
+  // Operation ID
+  if (ep.operationId) {
+    html += `<div>
+      <div class="detail-label">Operation ID</div>
+      <span class="ep-op-id">${esc(ep.operationId)}</span>
+    </div>`;
+  }
+
+  // Responses
+  if (ep.responses && Object.keys(ep.responses).length) {
+    html += `<div>
+      <div class="detail-label">Responses</div>
+      <div class="resp-row">
+        ${Object.entries(ep.responses).sort().map(([code, desc]) => {
+          const cls = code.startsWith('2') ? 'resp-2xx'
+                    : code.startsWith('3') ? 'resp-3xx'
+                    : code.startsWith('4') ? 'resp-4xx'
+                    : code.startsWith('5') ? 'resp-5xx' : 'resp-4xx';
+          const descStr = typeof desc === 'string' ? desc : (desc && desc.description) || '';
+          return `<span class="resp-badge ${cls}"><strong>${code}</strong>${descStr ? `<span class="resp-desc">${esc(descStr)}</span>` : ''}</span>`;
+        }).join('')}
+      </div>
+    </div>`;
+  }
+
+  // Parameters
+  if (ep.params && ep.params.length) {
+    html += `<div class="ep-detail-full">
+      <div class="detail-label">Parameters</div>
+      <table class="params-table">
+        <thead><tr>
+          <th>Name</th><th>In</th><th>Req</th><th>Type</th><th>Description</th>
+        </tr></thead>
+        <tbody>
+          ${ep.params.map(p => `<tr>
+            <td><code>${esc(p.name)}</code></td>
+            <td><span class="param-in ${p.in}">${p.in}</span></td>
+            <td class="param-req">${p.required ? '●' : ''}</td>
+            <td class="param-type">${esc(p.type || '')}</td>
+            <td class="param-desc">${esc(p.description || '')}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>`;
+  }
+
+  // Request body
+  if (ep.hasBody) {
+    html += `<div>
+      <div class="detail-label">Request Body</div>
+      ${ep.bodyRef ? `<span class="body-ref">${esc(ep.bodyRef)}</span>` : '<span style="color:var(--ink2);font-size:13px">Required</span>'}
+    </div>`;
+  }
+
+  html += '</div>';
+  return html;
+}
+
+function toggleCard(idx) {
+  const card = document.getElementById(`ep-${idx}`);
+  if (!card) return;
+  card.classList.toggle('expanded');
+}
+
+// ─────────────────────────── Search ───────────────────────────
+
+let searchDebounce = null;
+
+function onSearch(e) {
+  const q = e.target.value.trim();
+  document.getElementById('search-clear').classList.toggle('visible', q.length > 0);
+  clearTimeout(searchDebounce);
+  searchDebounce = setTimeout(() => runSearch(q), 120);
+}
+
+function clearSearch() {
+  document.getElementById('search-input').value = '';
+  document.getElementById('search-clear').classList.remove('visible');
+  state.searchQuery = '';
+  if (state.selectedGroup) {
+    const grp = DATA.tagGroups.find(g => g.name === state.selectedGroup);
+    if (state.selectedTag) {
+      const tag = grp && grp.tags.find(t => t.name === state.selectedTag);
+      if (tag) showEndpointView([{ group: state.selectedGroup, tag }]);
+    } else {
+      showEndpointView(grp.tags.map(tag => ({ group: grp.name, tag })));
+    }
+  } else {
+    showOverview();
+  }
+}
+
+function runSearch(q) {
+  state.searchQuery = q;
+  if (!q) { clearSearch(); return; }
+
+  const lq = q.toLowerCase();
+  const matches = state.epCardData.filter(ep =>
+    ep.path.toLowerCase().includes(lq) ||
+    (ep.summary || '').toLowerCase().includes(lq) ||
+    (ep.operationId || '').toLowerCase().includes(lq) ||
+    (ep.description || '').toLowerCase().includes(lq) ||
+    ep._tag.toLowerCase().includes(lq) ||
+    ep._group.toLowerCase().includes(lq)
+  );
+
+  setBreadcrumb([`Search: "${q}"`]);
+  setTopbarCt(`${matches.length} results`);
+
+  document.getElementById('view-overview').style.display = 'none';
+  document.getElementById('view-endpoints').style.display = 'none';
+  const sv = document.getElementById('view-search');
+  sv.style.display = 'block';
+  sv.classList.add('view-transition');
+  state.expandedCards.clear();
+
+  if (!matches.length) {
+    sv.innerHTML = `
+      <div class="search-header"><h2>No results for <span>"${esc(q)}"</span></h2></div>
+      <div class="no-results">Try a different path segment, method, or tag name.</div>`;
+    return;
+  }
+
+  // Group by tag group
+  const grouped = {};
+  for (const ep of matches) {
+    if (!grouped[ep._group]) grouped[ep._group] = [];
+    grouped[ep._group].push(ep);
+  }
+
+  let html = `<div class="search-header"><h2><span>${matches.length}</span> results for "${esc(q)}"</h2></div>`;
+  let idx = 0;
+
+  for (const [groupName, eps] of Object.entries(grouped)) {
+    html += `<div class="search-result-group-label">${esc(groupName)} · ${eps.length}</div>`;
+    for (const ep of eps) {
+      // Highlight matches
+      const pathHtml = highlightPath(ep.path, q);
+      const summaryHtml = highlight(ep.summary || ep.operationId || '', q);
+      const i = idx++;
+      html += `<div class="ep-card" id="sr-${i}">
+        <div class="ep-summary" onclick="toggleSearchCard(${i})">
+          <span class="method-badge method-${ep.method}">${ep.method}</span>
+          <span class="ep-path">${pathHtml}</span>
+          <span class="ep-title">${summaryHtml}</span>
+          <span class="ep-chevron">▼</span>
+        </div>
+        <div class="ep-detail">${buildDetailHtml(ep)}</div>
+      </div>`;
+    }
+  }
+
+  sv.innerHTML = html;
+}
+
+function toggleSearchCard(idx) {
+  const card = document.getElementById(`sr-${idx}`);
+  if (card) card.classList.toggle('expanded');
+}
+
+function toggleMethodFilter(method) {
+  if (state.methodFilters.has(method)) {
+    state.methodFilters.delete(method);
+  } else {
+    state.methodFilters.add(method);
+  }
+  // Re-render current view
+  if (state.selectedGroup) {
+    const grp = DATA.tagGroups.find(g => g.name === state.selectedGroup);
+    if (state.selectedTag) {
+      const tag = grp && grp.tags.find(t => t.name === state.selectedTag);
+      if (tag) showEndpointView([{ group: state.selectedGroup, tag }]);
+    } else {
+      showEndpointView(grp.tags.map(tag => ({ group: grp.name, tag })));
+    }
+  }
+  // Update button states
+  document.querySelectorAll('.mf-btn').forEach(btn => {
+    const m = btn.dataset.method;
+    btn.className = 'mf-btn ' + (state.methodFilters.has(m) ? `active-${m.toLowerCase()}` : '');
+  });
+}
+
+// ─────────────────────────── Helpers ───────────────────────────
+
+function setBreadcrumb(parts) {
+  const bc = document.getElementById('breadcrumb');
+  bc.innerHTML = parts.map((p, i) => {
+    if (i === parts.length - 1) return `<span class="crumb-active">${esc(p)}</span>`;
+    return `<span>${esc(p)}</span><span class="crumb-sep">›</span>`;
+  }).join('');
+}
+
+function setTopbarCt(text) {
+  document.getElementById('topbar-ct').textContent = text;
+}
+
+function esc(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function highlight(str, q) {
+  if (!str || !q) return esc(str);
+  const escaped = esc(str);
+  const escapedQ = esc(q).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return escaped.replace(new RegExp(escapedQ, 'gi'), m => `<mark>${m}</mark>`);
+}
+
+function highlightPath(path, q) {
+  const withParams = path.replace(/\{([^}]+)\}/g, '<span class="path-param">{$1}</span>');
+  if (!q) return withParams;
+  const lq = q.toLowerCase();
+  if (!path.toLowerCase().includes(lq)) return withParams;
+  const escapedQ = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return withParams.replace(new RegExp(escapedQ, 'gi'), m => `<mark>${m}</mark>`);
+}
+
+function slugify(str) {
+  return str.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+}
+</script>
+</body>
+</html>
