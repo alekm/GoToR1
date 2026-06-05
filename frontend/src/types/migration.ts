@@ -44,6 +44,7 @@ export interface MigrationProject {
   validationReport?: ValidationReport
   venueMapping?: Record<string, string>  // SmartZone zone ID -> RUCKUS One venue ID
   apGroupMapping?: Record<string, string> // SmartZone AP Group ID -> RUCKUS One AP Group ID
+  wlanMapping?: Record<string, string>   // SmartZone WLAN ID -> RUCKUS One wifi network ID
   radiusMapping?: Record<string, string> // SmartZone RADIUS service ID -> RUCKUS One RADIUS profile ID
 
   checkpoints: Checkpoint[]

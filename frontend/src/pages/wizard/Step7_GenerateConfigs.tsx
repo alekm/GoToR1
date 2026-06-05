@@ -29,7 +29,11 @@ interface Step7_GenerateConfigsProps {
   projectId: string
   extractedData: SmartZoneData
   venueMapping: Record<string, string> // zoneId -> venueId
-  onComplete: (apGroupMapping: Record<string, string>) => void // szApGroupId -> r1ApGroupId
+  onComplete: (
+    apGroupMapping: Record<string, string>, // szApGroupId -> r1ApGroupId
+    wlanMapping: Record<string, string>,    // szWlanId -> r1WifiNetworkId
+    radiusMapping: Record<string, string>   // szRadiusId -> r1RadiusProfileId
+  ) => void
   onBack: () => void
 }
 
@@ -50,6 +54,8 @@ export default function Step7_GenerateConfigs({
   const [createdAPGroups, setCreatedAPGroups] = useState<string[]>([])
   const [createdRadiusProfiles, setCreatedRadiusProfiles] = useState<string[]>([])
   const [apGroupMapping, setApGroupMapping] = useState<Record<string, string>>({}) // szApGroupId -> r1ApGroupId
+  const [wlanMapping, setWlanMapping] = useState<Record<string, string>>({}) // szWlanId -> r1WifiNetworkId
+  const [radiusMapping, setRadiusMapping] = useState<Record<string, string>>({}) // szRadiusId -> r1RadiusProfileId
   const [appliedRFSettings, setAppliedRFSettings] = useState<string[]>([]) // venue IDs
   const [errors, setErrors] = useState<string[]>([])
   const [radiusSecrets, setRadiusSecrets] = useState<Record<string, { primary?: string; secondary?: string }>>({})
@@ -249,6 +255,7 @@ export default function Step7_GenerateConfigs({
           const result = await createRadiusServerProfile(r1Credentials, profileWithSecrets)
           setCreatedRadiusProfiles((prev) => [...prev, radiusProfile.szRadiusId])
           newRadiusMapping[radiusProfile.szRadiusId] = result.id
+          setRadiusMapping((prev) => ({ ...prev, [radiusProfile.szRadiusId]: result.id }))
           console.log(`✓ RADIUS profile "${radiusProfile.name}" created with ID: ${result.id}`)
         } catch (err) {
           const errorMsg = err instanceof Error ? err.message : 'Unknown error'
@@ -310,6 +317,7 @@ export default function Step7_GenerateConfigs({
           const result = await createWifiNetwork(r1Credentials, networkWithRadius)
           setCreatedWLANs((prev) => [...prev, network.szWlanId])
           newWlanMapping[network.szWlanId] = result.id
+          setWlanMapping((prev) => ({ ...prev, [network.szWlanId]: result.id }))
           console.log(`✓ WLAN "${network.name}" created successfully with ID: ${result.id}`)
 
           // For External DPSK, link to RADIUS profile after creation
@@ -945,7 +953,7 @@ export default function Step7_GenerateConfigs({
         </button>
 
         {allConfigsCreated && currentPhase === 'complete' ? (
-          <button type="button" onClick={() => onComplete(apGroupMapping)} className="btn-primary">
+          <button type="button" onClick={() => onComplete(apGroupMapping, wlanMapping, radiusMapping)} className="btn-primary">
             Continue to Hardware Migration →
           </button>
         ) : (

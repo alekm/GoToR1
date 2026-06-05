@@ -1,42 +1,10 @@
-/**
- * Step 8: Upload Access Points to RUCKUS One
- *
- * Batch upload APs and assign them to AP Groups
- */
-
 import { useState } from 'react'
 import { CheckCircle, Wifi, Loader, AlertCircle } from 'lucide-react'
 import {
+  batchUploadAPs,
   type R1AccessPoint,
   type RuckusOneCredentials,
 } from '../../services/ruckusOneClient'
-import { getAccessToken } from '../../services/ruckusOneClient'
-import { apiFetch } from '../../services/apiClient'
-
-// Helper function for R1 API requests
-async function uploadAP(
-  creds: RuckusOneCredentials,
-  path: string,
-  ap: R1AccessPoint
-): Promise<void> {
-  const token = await getAccessToken(creds)
-  const region = creds.region || 'na'
-
-  const response = await apiFetch(region, path, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-    },
-    body: JSON.stringify(ap),
-  })
-
-  if (!response.ok) {
-    const errorText = await response.text()
-    throw new Error(`API request failed: ${response.status} - ${errorText}`)
-  }
-}
 import type { SmartZoneData } from '../../types/migration'
 import { useAuth } from '../../contexts/AuthContext'
 
@@ -74,26 +42,15 @@ export default function Step8_UploadAPs({
   })
   const [errors, setErrors] = useState<string[]>([])
   const [uploadComplete, setUploadComplete] = useState(false)
-  const [assignmentComplete, setAssignmentComplete] = useState(false)
 
   const totalAPs = extractedData.accessPoints.length
 
-  /**
-   * Sanitize AP serial number for R1 API
-   * R1 requires: ^[1-9][0-9]{11}$ (12 digits, first digit 1-9)
-   */
   function sanitizeSerial(serial: string): string {
-    // Remove non-digits
     const digits = serial.replace(/\D/g, '')
-
-    // Pad to 12 digits if needed
     const padded = digits.padStart(12, '0')
-
-    // Replace leading 0 with 1 if needed
     if (padded[0] === '0') {
       return '1' + padded.slice(1, 12)
     }
-
     return padded.slice(0, 12)
   }
 
@@ -105,50 +62,32 @@ export default function Step8_UploadAPs({
 
     setUploading(true)
     setErrors([])
-    const newErrors: string[] = []
 
     const r1Credentials: RuckusOneCredentials = credentials
 
     try {
-      // Detect duplicate AP names
+      // Detect duplicate AP names (R1 limit: 2-32 chars, must be unique)
       const nameCount = new Map<string, number>()
       extractedData.accessPoints.forEach((ap) => {
         nameCount.set(ap.name, (nameCount.get(ap.name) || 0) + 1)
       })
 
-      // Transform SmartZone APs to R1 format
-      const r1APs: R1AccessPoint[] = extractedData.accessPoints.map((ap) => {
-        // Find the zone name for tagging and venue ID for assignment
+      // Transform SmartZone APs to R1 format, including group assignment
+      const allAPs: R1AccessPoint[] = extractedData.accessPoints.map((ap) => {
         const zone = extractedData.zones.find((z) => z.id === ap.zoneId)
         const zoneName = zone?.name || 'unknown-zone'
         const venueId = venueMapping[ap.zoneId]
+        const apGroupId = ap.apGroupId ? apGroupMapping[ap.apGroupId] : undefined
 
-        if (!venueId) {
-          console.warn(`No venue ID found for AP "${ap.name}" in zone "${zoneName}"`)
-        }
-
-        // Determine AP name (R1 limit: 2-32 chars)
         let apName = ap.name
         const isDuplicate = (nameCount.get(ap.name) || 0) > 1
 
         if (isDuplicate || apName.length > 32) {
-          // Use MAC address for duplicates or long names
-          const macSuffix = ap.mac.slice(-6).toUpperCase() // Last 6 chars of MAC
-
-          if (apName.length > 25) {
-            // Truncate and append MAC: "LongName..." + "-" + "ABCDEF"
-            apName = apName.slice(0, 25) + '-' + macSuffix
-          } else {
-            // Append MAC to existing name: "APName-ABCDEF"
-            apName = `${apName}-${macSuffix}`
-          }
-
-          // Ensure within 32 char limit
-          if (apName.length > 32) {
-            apName = apName.slice(0, 32)
-          }
-
-          console.log(`AP name conflict: "${ap.name}" → "${apName}" (${isDuplicate ? 'duplicate' : 'too long'})`)
+          const macSuffix = ap.mac.slice(-6).toUpperCase()
+          apName = apName.length > 25
+            ? apName.slice(0, 25) + '-' + macSuffix
+            : `${apName}-${macSuffix}`
+          if (apName.length > 32) apName = apName.slice(0, 32)
         }
 
         return {
@@ -158,95 +97,53 @@ export default function Step8_UploadAPs({
           model: ap.model,
           tags: ['migrated-from-smartzone', `sz-zone:${zoneName}`, `sz-name:${ap.name}`],
           deviceGps: ap.gps
-            ? {
-                latitude: ap.gps.latitude,
-                longitude: ap.gps.longitude,
-              }
+            ? { latitude: ap.gps.latitude, longitude: ap.gps.longitude }
             : undefined,
-          venueId: venueId, // Required by R1 API
+          venueId,
+          apGroupId,
         }
       })
 
-      // Calculate batches
-      const batchSize = 50
-      const totalBatches = Math.ceil(r1APs.length / batchSize)
-      setProgress({
-        total: r1APs.length,
-        completed: 0,
-        failed: 0,
-        currentBatch: 0,
-        totalBatches,
-      })
-
-      console.log(`Uploading ${r1APs.length} APs individually to their groups...`)
-
-      // Upload APs one by one to their respective AP groups or venue
-      let successCount = 0
-      let failCount = 0
-
-      for (let i = 0; i < r1APs.length; i++) {
-        const ap = r1APs[i]
-        const szAP = extractedData.accessPoints[i]
-
-        // Find the R1 AP Group ID if this AP belongs to a group
-        const r1ApGroupId = szAP.apGroupId ? apGroupMapping[szAP.apGroupId] : undefined
-        const venueId = venueMapping[szAP.zoneId]
-
-        if (!venueId) {
-          const errorMsg = `No venue ID for AP "${ap.name}"`
-          console.error(errorMsg)
-          newErrors.push(errorMsg)
-          failCount++
-          continue
-        }
-
-        // Determine upload endpoint
-        let uploadPath: string
-        if (r1ApGroupId) {
-          // Upload directly to AP group
-          uploadPath = `/venues/${venueId}/apGroups/${r1ApGroupId}/aps`
-        } else {
-          // Upload to venue (no group)
-          uploadPath = `/venues/${venueId}/aps`
-        }
-
-        try {
-          await uploadAP(r1Credentials, uploadPath, ap)
-          successCount++
-          console.log(`✓ Uploaded AP "${ap.name}" to ${r1ApGroupId ? 'group' : 'venue'}`)
-        } catch (err) {
-          const errorMsg = `Failed to upload AP "${ap.name}": ${
-            err instanceof Error ? err.message : 'Unknown error'
-          }`
-          console.error(errorMsg)
-          newErrors.push(errorMsg)
-          failCount++
-        }
-
-        // Update progress
-        setProgress({
-          total: r1APs.length,
-          completed: i + 1,
-          failed: failCount,
-          currentBatch: Math.ceil((i + 1) / 50),
-          totalBatches,
-        })
+      // Filter APs with no venue mapping — can't upload without a venue
+      const validAPs = allAPs.filter((ap) => ap.venueId)
+      const skippedCount = allAPs.length - validAPs.length
+      if (skippedCount > 0) {
+        setErrors([`${skippedCount} AP${skippedCount > 1 ? 's' : ''} skipped — no venue mapping found`])
       }
 
-      console.log(`AP Upload complete: ${successCount} succeeded, ${failCount} failed`)
-      setErrors(newErrors)
+      const batchSize = 50
+      const totalBatches = Math.ceil(validAPs.length / batchSize)
+      setProgress({ total: validAPs.length, completed: 0, failed: 0, currentBatch: 0, totalBatches })
+
+      // Batch upload — apGroupId is included in payload so group assignment happens at upload time
+      const result = await batchUploadAPs(r1Credentials, validAPs, (completed, total) => {
+        setProgress({
+          total,
+          completed,
+          failed: 0,
+          currentBatch: Math.ceil(completed / batchSize),
+          totalBatches,
+        })
+      })
+
+      const failErrors = result.failed.map(
+        ({ ap, error }) => `Failed to upload AP "${ap.name}": ${error}`
+      )
+
+      setProgress((prev) => ({
+        ...prev,
+        completed: result.success.length,
+        failed: result.failed.length,
+      }))
+      setErrors((prev) => [...prev, ...failErrors])
       setUploadComplete(true)
-      setAssignmentComplete(true)
+
     } catch (err) {
-      const errorMsg = `AP upload failed: ${err instanceof Error ? err.message : 'Unknown error'}`
-      console.error(errorMsg)
-      setErrors([...newErrors, errorMsg])
+      setErrors([`AP upload failed: ${err instanceof Error ? err.message : 'Unknown error'}`])
     } finally {
       setUploading(false)
     }
   }
-
-  const allComplete = uploadComplete && assignmentComplete
 
   if (!isConfigured) {
     return (
@@ -306,9 +203,7 @@ export default function Step8_UploadAPs({
           <div className="flex items-center space-x-3 mb-4">
             <Loader size={20} className="text-blue-600 animate-spin" />
             <div>
-              <h3 className="font-semibold text-blue-900">
-                {uploadComplete ? 'Assigning APs to Groups...' : 'Uploading APs...'}
-              </h3>
+              <h3 className="font-semibold text-blue-900">Uploading APs...</h3>
               <p className="text-sm text-blue-700">
                 {progress.completed} of {progress.total} APs processed
                 {progress.totalBatches > 0 &&
@@ -328,7 +223,7 @@ export default function Step8_UploadAPs({
       )}
 
       {/* Success Summary */}
-      {allComplete && (
+      {uploadComplete && (
         <div className="card mb-6 bg-green-50 border-green-200">
           <div className="flex items-center space-x-3">
             <CheckCircle size={24} className="text-green-600" />
@@ -419,7 +314,7 @@ export default function Step8_UploadAPs({
           ← Back
         </button>
 
-        {allComplete ? (
+        {uploadComplete ? (
           <button type="button" onClick={onComplete} className="btn-primary">
             Continue to Switch Upload →
           </button>

@@ -38,9 +38,9 @@ The migration wizard uses named steps (not numeric) managed in `MigrationWizard.
 | `extract` | `Step3_ExtractData.tsx` | ✅ |
 | `venues` | `Step6_CreateVenues.tsx` | ✅ |
 | `configs` | `Step7_GenerateConfigs.tsx` | ✅ (eDPSK, RADIUS, WLAN activation) |
-| `migrate-aps` | `Step8_UploadAPs.tsx` | ⏭️ coming soon |
-| `migrate-switches` | `Step9_UploadSwitches.tsx` | ⏭️ coming soon |
-| `verify` | `Step10_Verification.tsx` | ⏭️ coming soon |
+| `migrate-aps` | `Step8_UploadAPs.tsx` | ✅ (batch via `POST /venues/aps` with apGroupId) |
+| `migrate-switches` | `Step9_UploadSwitches.tsx` | ✅ (best-effort; ICX switches use ZTP) |
+| `verify` | `Step10_Verification.tsx` | ✅ (summary + WLAN/venue mapping tables) |
 
 `MigrationWizard.tsx` handles step sequencing, back navigation, and conditional rendering based on project state (e.g., `venues` requires `extractedData` to be set).
 
@@ -125,7 +125,11 @@ Respect SmartZone AP Group WLAN membership (`apGroup.wlans[]`) — activate per 
 
 **AP serial format**: `^[1-9][0-9]{11}$` — sanitize by removing non-digits, padding to 12 chars, replacing leading 0 with 1.
 
+**AP upload includes group assignment** — `POST /venues/aps` accepts `apGroupId` in the `ApRequest` payload, so APs are batch-uploaded and group-assigned in one call. No separate assignment step needed.
+
 **Batch limits**: APs → 50/batch (`POST /venues/aps`), Switches → 25/batch (`POST /switches`).
+
+**ICX switch upload**: `POST /switches` uses `AddSwitchBo` schema (no `serialNumber` field — R1 assigns its own ID). ICX switches onboard via ZTP; the upload step is best-effort. The CSV import endpoints (`POST /venues/{venueId}/switches/importRequests`) accept multipart/form-data file uploads for bulk pre-registration.
 
 ## Critical Patterns
 

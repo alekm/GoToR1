@@ -13,6 +13,8 @@ interface Step10_VerificationProps {
   projectId: string
   extractedData: SmartZoneData
   venueMapping: Record<string, string>
+  wlanMapping?: Record<string, string>
+  radiusMapping?: Record<string, string>
   onBack: () => void
 }
 
@@ -20,6 +22,8 @@ export default function Step10_Verification({
   projectId,
   extractedData,
   venueMapping,
+  wlanMapping,
+  radiusMapping,
   onBack,
 }: Step10_VerificationProps) {
   const navigate = useNavigate()
@@ -282,6 +286,49 @@ export default function Step10_Verification({
           </div>
         </div>
       </div>
+
+      {/* WLAN Mapping */}
+      {wlanMapping && Object.keys(wlanMapping).length > 0 && (
+        <div className="card mb-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">WLAN Mapping</h3>
+          <div className="max-h-64 overflow-y-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 sticky top-0">
+                <tr>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                    SmartZone WLAN
+                  </th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                    SSID
+                  </th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                    Security
+                  </th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                    R1 Network ID
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {extractedData.wlans.map((wlan) => (
+                  <tr key={wlan.id} className="hover:bg-gray-50">
+                    <td className="px-3 py-2 text-gray-900 font-medium">{wlan.name}</td>
+                    <td className="px-3 py-2 text-gray-600">{wlan.ssid}</td>
+                    <td className="px-3 py-2 text-gray-600">{wlan.type || '—'}</td>
+                    <td className="px-3 py-2 font-mono text-xs">
+                      {wlanMapping[wlan.id] ? (
+                        <span className="text-green-700">{wlanMapping[wlan.id]}</span>
+                      ) : (
+                        <span className="text-red-500">Not created</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* Zone → Venue Mapping */}
       <div className="card mb-6">

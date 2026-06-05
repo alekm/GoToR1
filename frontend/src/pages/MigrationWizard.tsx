@@ -102,11 +102,17 @@ export default function MigrationWizard() {
     }
   }
 
-  const handleConfigsComplete = async (apGroupMapping: Record<string, string>) => {
+  const handleConfigsComplete = async (
+    apGroupMapping: Record<string, string>,
+    wlanMapping: Record<string, string>,
+    radiusMapping: Record<string, string>
+  ) => {
     try {
-      // Save AP Group mapping and proceed to AP upload
+      // Save all R1 ID mappings and proceed to AP upload
       await migrationStateManager.updateProject(projectId, {
         apGroupMapping,
+        wlanMapping,
+        radiusMapping,
         currentStep: 'migrate-aps',
         status: 'migrating',
       })
@@ -268,6 +274,8 @@ export default function MigrationWizard() {
           projectId={projectId}
           extractedData={project.extractedData}
           venueMapping={project.venueMapping}
+          wlanMapping={project.wlanMapping}
+          radiusMapping={project.radiusMapping}
           onBack={handleBack}
         />
       )}
