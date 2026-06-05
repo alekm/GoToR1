@@ -274,6 +274,7 @@ export default function MigrationWizard() {
           projectId={projectId}
           extractedData={project.extractedData}
           venueMapping={project.venueMapping}
+          apGroupMapping={project.apGroupMapping}
           wlanMapping={project.wlanMapping}
           radiusMapping={project.radiusMapping}
           onBack={handleBack}

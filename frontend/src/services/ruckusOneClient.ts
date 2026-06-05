@@ -528,6 +528,18 @@ export async function createWifiNetwork(
 }
 
 /**
+ * Get a single WiFi network by ID
+ * GET /wifiNetworks/{networkId}
+ */
+export async function getWifiNetwork(
+  creds: RuckusOneCredentials,
+  networkId: string,
+  msp?: MspContext
+): Promise<R1WifiNetwork> {
+  return await apiRequest<R1WifiNetwork>(creds, 'GET', `/wifiNetworks/${networkId}`, undefined, msp)
+}
+
+/**
  * List WiFi networks
  * GET /wifiNetworks
  */
@@ -610,6 +622,25 @@ export async function listAPGroups(
     msp
   )
   return response.list || []
+}
+
+/**
+ * Get a single AP Group by ID
+ * GET /venues/{venueId}/apGroups/{apGroupId}
+ */
+export async function getAPGroup(
+  creds: RuckusOneCredentials,
+  venueId: string,
+  apGroupId: string,
+  msp?: MspContext
+): Promise<R1APGroup> {
+  return await apiRequest<R1APGroup>(
+    creds,
+    'GET',
+    `/venues/${venueId}/apGroups/${apGroupId}`,
+    undefined,
+    msp
+  )
 }
 
 // ============================================================================
@@ -721,6 +752,25 @@ export async function listRadiusServerProfiles(
 
 /**
  * Link RADIUS Server Profile to WiFi Network
+/**
+ * Get a single RADIUS server profile by ID
+ * GET /radiusServerProfiles/{radiusId}
+ */
+export async function getRadiusServerProfile(
+  creds: RuckusOneCredentials,
+  radiusId: string,
+  msp?: MspContext
+): Promise<R1RadiusServerProfileResponse> {
+  return await apiRequest<R1RadiusServerProfileResponse>(
+    creds,
+    'GET',
+    `/radiusServerProfiles/${radiusId}`,
+    undefined,
+    msp
+  )
+}
+
+/**
  * PUT /wifiNetworks/{wifiNetworkId}/radiusServerProfiles/{radiusId}
  *
  * Creates a relationship between a RADIUS server profile and a WiFi network.

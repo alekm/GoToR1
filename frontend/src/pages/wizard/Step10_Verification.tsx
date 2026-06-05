@@ -1,33 +1,57 @@
-/**
- * Step 10: Migration Verification & Reporting
- *
- * Display migration summary and verification results
- */
-
 import { useState } from 'react'
-import { CheckCircle, AlertCircle, Info, Download, ExternalLink } from 'lucide-react'
+import { CheckCircle, AlertCircle, Info, Download, ExternalLink, RefreshCw, XCircle } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
+import {
+  getVenue,
+  getWifiNetwork,
+  getAPGroup,
+  getRadiusServerProfile,
+  type RuckusOneCredentials,
+} from '../../services/ruckusOneClient'
+import { useAuth } from '../../contexts/AuthContext'
 import type { SmartZoneData } from '../../types/migration'
 
 interface Step10_VerificationProps {
   projectId: string
   extractedData: SmartZoneData
   venueMapping: Record<string, string>
+  apGroupMapping?: Record<string, string>
   wlanMapping?: Record<string, string>
   radiusMapping?: Record<string, string>
   onBack: () => void
 }
 
+interface VerificationItem {
+  id: string
+  name: string
+  found: boolean
+  error?: string
+}
+
+interface VerificationResults {
+  venues: VerificationItem[]
+  wlans: VerificationItem[]
+  apGroups: VerificationItem[]
+  radiusProfiles: VerificationItem[]
+}
+
+type VerifyState = 'idle' | 'running' | 'done'
+
 export default function Step10_Verification({
   projectId,
   extractedData,
   venueMapping,
+  apGroupMapping,
   wlanMapping,
   radiusMapping,
   onBack,
 }: Step10_VerificationProps) {
   const navigate = useNavigate()
+  const { credentials } = useAuth()
   const [downloadingReport, setDownloadingReport] = useState(false)
+  const [verifyState, setVerifyState] = useState<VerifyState>('idle')
+  const [verifyPhase, setVerifyPhase] = useState('')
+  const [verifyResults, setVerifyResults] = useState<VerificationResults | null>(null)
 
   const stats = {
     zones: extractedData.zones.length,
@@ -38,10 +62,88 @@ export default function Step10_Verification({
     venues: Object.keys(venueMapping).length,
   }
 
+  const handleVerify = async () => {
+    if (!credentials) return
+
+    setVerifyState('running')
+    setVerifyResults(null)
+
+    const creds: RuckusOneCredentials = credentials
+
+    async function check<T>(fn: () => Promise<T>): Promise<boolean> {
+      try {
+        await fn()
+        return true
+      } catch {
+        return false
+      }
+    }
+
+    // Venues
+    setVerifyPhase('venues')
+    const venueItems: VerificationItem[] = await Promise.all(
+      extractedData.zones.map(async (zone) => {
+        const r1Id = venueMapping[zone.id]
+        if (!r1Id) return { id: zone.id, name: zone.name, found: false, error: 'No venue ID mapped' }
+        const found = await check(() => getVenue(creds, r1Id))
+        return { id: r1Id, name: zone.name, found }
+      })
+    )
+
+    // WLANs
+    setVerifyPhase('WLANs')
+    const wlanItems: VerificationItem[] = wlanMapping
+      ? await Promise.all(
+          extractedData.wlans.map(async (wlan) => {
+            const r1Id = wlanMapping[wlan.id]
+            if (!r1Id) return { id: wlan.id, name: wlan.name, found: false, error: 'Not created' }
+            const found = await check(() => getWifiNetwork(creds, r1Id))
+            return { id: r1Id, name: wlan.name, found }
+          })
+        )
+      : []
+
+    // AP Groups
+    setVerifyPhase('AP Groups')
+    const apGroupItems: VerificationItem[] = apGroupMapping
+      ? await Promise.all(
+          extractedData.apGroups.map(async (apg) => {
+            const r1ApGroupId = apGroupMapping[apg.id]
+            const venueId = venueMapping[apg.zoneId]
+            if (!r1ApGroupId) return { id: apg.id, name: apg.name, found: false, error: 'Not created' }
+            if (!venueId) return { id: apg.id, name: apg.name, found: false, error: 'No venue for zone' }
+            const found = await check(() => getAPGroup(creds, venueId, r1ApGroupId))
+            return { id: r1ApGroupId, name: apg.name, found }
+          })
+        )
+      : []
+
+    // RADIUS profiles
+    setVerifyPhase('RADIUS profiles')
+    const radiusItems: VerificationItem[] = radiusMapping
+      ? await Promise.all(
+          extractedData.radiusServices.map(async (svc) => {
+            const r1Id = radiusMapping[svc.id]
+            if (!r1Id) return { id: svc.id, name: svc.name, found: false, error: 'Not created' }
+            const found = await check(() => getRadiusServerProfile(creds, r1Id))
+            return { id: r1Id, name: svc.name, found }
+          })
+        )
+      : []
+
+    setVerifyResults({
+      venues: venueItems,
+      wlans: wlanItems,
+      apGroups: apGroupItems,
+      radiusProfiles: radiusItems,
+    })
+    setVerifyState('done')
+    setVerifyPhase('')
+  }
+
   const handleDownloadReport = () => {
     setDownloadingReport(true)
 
-    // Generate migration report
     const report = {
       projectId,
       timestamp: new Date().toISOString(),
@@ -53,23 +155,25 @@ export default function Step10_Verification({
         totalSwitches: stats.switches,
         totalVenues: stats.venues,
       },
-      zones: extractedData.zones.map((zone) => ({
-        id: zone.id,
-        name: zone.name,
-        venueId: venueMapping[zone.id],
-      })),
-      wlans: extractedData.wlans.map((wlan) => ({
-        id: wlan.id,
-        name: wlan.name,
-        ssid: wlan.ssid,
-        type: wlan.type,
-        zoneId: wlan.zoneId,
-      })),
-      apGroups: extractedData.apGroups.map((group) => ({
-        id: group.id,
-        name: group.name,
-        zoneId: group.zoneId,
-      })),
+      mappings: {
+        venues: Object.fromEntries(
+          extractedData.zones.map((z) => [z.name, venueMapping[z.id] || null])
+        ),
+        wlans: wlanMapping
+          ? Object.fromEntries(extractedData.wlans.map((w) => [w.name, wlanMapping[w.id] || null]))
+          : {},
+        apGroups: apGroupMapping
+          ? Object.fromEntries(
+              extractedData.apGroups.map((g) => [g.name, apGroupMapping[g.id] || null])
+            )
+          : {},
+        radiusProfiles: radiusMapping
+          ? Object.fromEntries(
+              extractedData.radiusServices.map((r) => [r.name, radiusMapping[r.id] || null])
+            )
+          : {},
+      },
+      verification: verifyResults || null,
       accessPoints: extractedData.accessPoints.map((ap) => ({
         serial: ap.serial,
         name: ap.name,
@@ -85,10 +189,7 @@ export default function Step10_Verification({
       })),
     }
 
-    // Create downloadable JSON file
-    const blob = new Blob([JSON.stringify(report, null, 2)], {
-      type: 'application/json',
-    })
+    const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
@@ -101,16 +202,12 @@ export default function Step10_Verification({
     setDownloadingReport(false)
   }
 
-  const handleFinish = () => {
-    navigate('/')
-  }
-
   return (
     <div className="max-w-5xl mx-auto px-4 py-8">
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">Migration Complete!</h1>
         <p className="text-gray-600">
-          Your SmartZone configuration has been successfully migrated to RUCKUS One
+          Your SmartZone configuration has been migrated to RUCKUS One
         </p>
       </div>
 
@@ -123,8 +220,8 @@ export default function Step10_Verification({
               Migration Completed Successfully
             </h3>
             <p className="text-green-800">
-              All resources have been migrated to RUCKUS One. Review the summary below and
-              verify the configuration in your RUCKUS One portal.
+              All resources have been migrated to RUCKUS One. Use the verification tool below to
+              confirm everything exists in your tenant.
             </p>
           </div>
         </div>
@@ -142,7 +239,6 @@ export default function Step10_Verification({
             <p className="text-3xl font-bold text-gray-900">{stats.venues}</p>
             <p className="text-xs text-gray-500 mt-1">from {stats.zones} SmartZone zones</p>
           </div>
-
           <div>
             <div className="flex items-center space-x-2 mb-2">
               <div className="w-3 h-3 bg-purple-500 rounded-full" />
@@ -151,7 +247,6 @@ export default function Step10_Verification({
             <p className="text-3xl font-bold text-gray-900">{stats.wlans}</p>
             <p className="text-xs text-gray-500 mt-1">WLANs migrated</p>
           </div>
-
           <div>
             <div className="flex items-center space-x-2 mb-2">
               <div className="w-3 h-3 bg-indigo-500 rounded-full" />
@@ -160,7 +255,6 @@ export default function Step10_Verification({
             <p className="text-3xl font-bold text-gray-900">{stats.apGroups}</p>
             <p className="text-xs text-gray-500 mt-1">AP groups created</p>
           </div>
-
           <div>
             <div className="flex items-center space-x-2 mb-2">
               <div className="w-3 h-3 bg-green-500 rounded-full" />
@@ -169,7 +263,6 @@ export default function Step10_Verification({
             <p className="text-3xl font-bold text-gray-900">{stats.aps}</p>
             <p className="text-xs text-gray-500 mt-1">APs uploaded</p>
           </div>
-
           <div>
             <div className="flex items-center space-x-2 mb-2">
               <div className="w-3 h-3 bg-orange-500 rounded-full" />
@@ -178,7 +271,6 @@ export default function Step10_Verification({
             <p className="text-3xl font-bold text-gray-900">{stats.switches}</p>
             <p className="text-xs text-gray-500 mt-1">switches uploaded</p>
           </div>
-
           <div>
             <div className="flex items-center space-x-2 mb-2">
               <div className="w-3 h-3 bg-gray-500 rounded-full" />
@@ -192,6 +284,59 @@ export default function Step10_Verification({
         </div>
       </div>
 
+      {/* Live Verification */}
+      <div className="card mb-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold text-gray-900">Verify in RUCKUS One</h3>
+          <button
+            type="button"
+            onClick={handleVerify}
+            disabled={verifyState === 'running' || !credentials}
+            className="btn-secondary flex items-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <RefreshCw size={16} className={verifyState === 'running' ? 'animate-spin' : ''} />
+            <span>
+              {verifyState === 'running'
+                ? `Checking ${verifyPhase}...`
+                : verifyState === 'done'
+                  ? 'Re-verify'
+                  : 'Run Verification'}
+            </span>
+          </button>
+        </div>
+
+        {verifyState === 'idle' && (
+          <p className="text-sm text-gray-500">
+            Queries RUCKUS One to confirm each venue, WLAN, AP group, and RADIUS profile exists
+            in your tenant.
+          </p>
+        )}
+
+        {verifyState === 'running' && (
+          <div className="space-y-2">
+            {(['venues', 'WLANs', 'AP Groups', 'RADIUS profiles'] as const).map((phase) => (
+              <div key={phase} className="flex items-center space-x-2 text-sm text-gray-600">
+                {verifyPhase === phase ? (
+                  <RefreshCw size={14} className="animate-spin text-blue-500 flex-shrink-0" />
+                ) : (
+                  <div className="w-3.5 h-3.5 rounded-full border border-gray-300 flex-shrink-0" />
+                )}
+                <span>{phase}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {verifyState === 'done' && verifyResults && (
+          <div className="space-y-3">
+            <VerifyCategory label="Venues" items={verifyResults.venues} />
+            <VerifyCategory label="WLANs" items={verifyResults.wlans} />
+            <VerifyCategory label="AP Groups" items={verifyResults.apGroups} />
+            <VerifyCategory label="RADIUS Profiles" items={verifyResults.radiusProfiles} />
+          </div>
+        )}
+      </div>
+
       {/* Next Steps */}
       <div className="card mb-6 bg-blue-50 border-blue-200">
         <div className="flex items-start space-x-4">
@@ -202,36 +347,32 @@ export default function Step10_Verification({
               <li className="flex items-start space-x-2">
                 <span className="font-semibold mt-0.5">1.</span>
                 <span>
-                  <strong>Log into RUCKUS One</strong> and verify all resources were created
-                  correctly
+                  <strong>Log into RUCKUS One</strong> and verify all resources were created correctly
                 </span>
               </li>
               <li className="flex items-start space-x-2">
                 <span className="font-semibold mt-0.5">2.</span>
                 <span>
-                  <strong>Verify RF settings</strong> for each venue match your SmartZone
-                  configuration
+                  <strong>Verify RF settings</strong> for each venue match your SmartZone configuration
                 </span>
               </li>
               <li className="flex items-start space-x-2">
                 <span className="font-semibold mt-0.5">3.</span>
                 <span>
-                  <strong>Test WLANs</strong> to ensure security settings and network policies
-                  are correct
+                  <strong>Test WLANs</strong> to ensure security settings and network policies are correct
                 </span>
               </li>
               <li className="flex items-start space-x-2">
                 <span className="font-semibold mt-0.5">4.</span>
                 <span>
-                  <strong>Verify AP assignments</strong> to ensure all APs are in the correct
-                  AP Groups
+                  <strong>Verify AP assignments</strong> — all APs should be in the correct AP Groups
                 </span>
               </li>
               <li className="flex items-start space-x-2">
                 <span className="font-semibold mt-0.5">5.</span>
                 <span>
-                  <strong>Plan hardware cutover</strong> - disconnect APs from SmartZone and
-                  allow them to adopt to RUCKUS One
+                  <strong>Plan hardware cutover</strong> — disconnect APs from SmartZone and allow
+                  them to adopt to RUCKUS One
                 </span>
               </li>
             </ol>
@@ -257,22 +398,22 @@ export default function Step10_Verification({
               <li className="flex items-start space-x-2">
                 <span className="mt-1">•</span>
                 <span>
-                  <strong>AAA/802.1X networks:</strong> Verify RADIUS server connectivity and
-                  test authentication after configuring shared secrets
+                  <strong>AAA/802.1X networks:</strong> Verify RADIUS server connectivity and test
+                  authentication after configuring shared secrets
                 </span>
               </li>
               <li className="flex items-start space-x-2">
                 <span className="mt-1">•</span>
                 <span>
-                  <strong>Hotspot 2.0:</strong> Limited support in RUCKUS One - manual review
-                  and configuration required
+                  <strong>Hotspot 2.0:</strong> Limited support in RUCKUS One — manual review and
+                  configuration required
                 </span>
               </li>
               <li className="flex items-start space-x-2">
                 <span className="mt-1">•</span>
                 <span>
-                  <strong>Advanced features:</strong> Some SmartZone features (L2/L3 ACL,
-                  dynamic VLAN, etc.) may require manual configuration in RUCKUS One
+                  <strong>Advanced features:</strong> Some SmartZone features (L2/L3 ACL, dynamic
+                  VLAN, etc.) may require manual configuration in RUCKUS One
                 </span>
               </li>
               <li className="flex items-start space-x-2">
@@ -353,9 +494,7 @@ export default function Step10_Verification({
             </thead>
             <tbody className="divide-y divide-gray-200">
               {extractedData.zones.map((zone) => {
-                const wlanCount = extractedData.wlans.filter(
-                  (w) => w.zoneId === zone.id
-                ).length
+                const wlanCount = extractedData.wlans.filter((w) => w.zoneId === zone.id).length
                 const apCount = extractedData.accessPoints.filter(
                   (ap) => ap.zoneId === zone.id
                 ).length
@@ -401,10 +540,65 @@ export default function Step10_Verification({
           ← Back
         </button>
 
-        <button type="button" onClick={handleFinish} className="btn-primary ml-auto">
+        <button type="button" onClick={() => navigate('/')} className="btn-primary ml-auto">
           Return to Projects
         </button>
       </div>
+    </div>
+  )
+}
+
+// ── Verify category row ──────────────────────────────────────────────────────
+
+function VerifyCategory({ label, items }: { label: string; items: VerificationItem[] }) {
+  const [expanded, setExpanded] = useState(false)
+
+  if (items.length === 0) return null
+
+  const found = items.filter((i) => i.found).length
+  const total = items.length
+  const allOk = found === total
+  const missing = items.filter((i) => !i.found)
+
+  return (
+    <div className="border rounded-lg overflow-hidden">
+      <button
+        type="button"
+        onClick={() => !allOk && setExpanded((v) => !v)}
+        className={`w-full flex items-center justify-between px-4 py-3 text-left ${
+          allOk ? 'bg-green-50' : 'bg-red-50 cursor-pointer hover:bg-red-100'
+        }`}
+      >
+        <div className="flex items-center space-x-3">
+          {allOk ? (
+            <CheckCircle size={18} className="text-green-600 flex-shrink-0" />
+          ) : (
+            <XCircle size={18} className="text-red-500 flex-shrink-0" />
+          )}
+          <span className={`font-medium text-sm ${allOk ? 'text-green-900' : 'text-red-900'}`}>
+            {label}
+          </span>
+        </div>
+        <span className={`text-sm ${allOk ? 'text-green-700' : 'text-red-700'}`}>
+          {found}/{total} found
+          {!allOk && <span className="ml-1 text-xs">({missing.length} missing{!expanded ? ' — click to expand' : ''})</span>}
+        </span>
+      </button>
+
+      {expanded && missing.length > 0 && (
+        <ul className="bg-white border-t divide-y">
+          {missing.map((item) => (
+            <li key={item.id} className="px-4 py-2 flex items-center space-x-3 text-sm">
+              <XCircle size={14} className="text-red-400 flex-shrink-0" />
+              <span className="text-gray-900">{item.name}</span>
+              {item.error && <span className="text-gray-400 text-xs">— {item.error}</span>}
+              {item.id && (
+                <span className="text-gray-400 font-mono text-xs ml-auto">{item.id}</span>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   )
 }
